@@ -1,0 +1,528 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1D9AA1BF6EB0241B7D30A7D6 /* NovelNestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98FE6E5340937761B20A56 /* NovelNestApp.swift */; };
+		3190FE85FE34C3C3D164AABD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A762BE31AFA3A666648F1552 /* Assets.xcassets */; };
+		36DD1A5CAAB50252BB60224C /* BookshelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4793E5617E8C4527515B3C43 /* BookshelfView.swift */; };
+		5723AC0A2BAC24571BB5E17F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAFD819B58D9D106A0DD78C7 /* SettingsView.swift */; };
+		5F2862C7C39633C96529B64E /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004286FFA35A48F198211C6 /* ReaderView.swift */; };
+		6637F8B7816D92C715E969E8 /* NovelNestCore in Frameworks */ = {isa = PBXBuildFile; productRef = 580DED968B3D42B4DA5297D9 /* NovelNestCore */; };
+		8E764F464374BFC8088564C2 /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2E3A4DF66AD9CEB4BB7EAC /* SpeechController.swift */; };
+		A65BF04729D70B1DBA25A6A2 /* LibraryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BCC466EE3D86436F2D2594 /* LibraryServiceTests.swift */; };
+		BCDF097BC091D6C4CF5C0597 /* ReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 104B1BD1A6BCF2F8E376C293 /* ReaderAppearance.swift */; };
+		C4E02283DF094242A5435DA2 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432D35BCF2D2AFDBDD46E669 /* Models.swift */; };
+		EE7E5CBDB3988634A087CB97 /* LibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DADE2F15FE384E76B732EB1 /* LibraryService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DCF4A7D64171A56145839CEC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EBA06BF9306208DE3AEECA9C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 358DDFB1B14FFF3E41DD29B1;
+			remoteInfo = NovelNest;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		104B1BD1A6BCF2F8E376C293 /* ReaderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderAppearance.swift; sourceTree = "<group>"; };
+		432D35BCF2D2AFDBDD46E669 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		4793E5617E8C4527515B3C43 /* BookshelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookshelfView.swift; sourceTree = "<group>"; };
+		50BCC466EE3D86436F2D2594 /* LibraryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryServiceTests.swift; sourceTree = "<group>"; };
+		6F98FE6E5340937761B20A56 /* NovelNestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovelNestApp.swift; sourceTree = "<group>"; };
+		74B169676A1A3EAF445901FC /* NovelNestCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NovelNestCore; path = NovelNestCore; sourceTree = SOURCE_ROOT; };
+		9DADE2F15FE384E76B732EB1 /* LibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryService.swift; sourceTree = "<group>"; };
+		A762BE31AFA3A666648F1552 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B004286FFA35A48F198211C6 /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
+		BAFD819B58D9D106A0DD78C7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		DD2E3A4DF66AD9CEB4BB7EAC /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
+		DE0D5F5E99FFACDAEFB1B101 /* NovelNestTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NovelNestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E311D68DD0005B7551D5DF57 /* NovelNest.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NovelNest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2084409B1CEB174D317C7C90 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6637F8B7816D92C715E969E8 /* NovelNestCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03802022DE81698523035A12 /* Reader */ = {
+			isa = PBXGroup;
+			children = (
+				104B1BD1A6BCF2F8E376C293 /* ReaderAppearance.swift */,
+				B004286FFA35A48F198211C6 /* ReaderView.swift */,
+			);
+			path = Reader;
+			sourceTree = "<group>";
+		};
+		056764E2D3EC290CDCA1B48A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				74B169676A1A3EAF445901FC /* NovelNestCore */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		0965613F1636612CFC00AFF1 = {
+			isa = PBXGroup;
+			children = (
+				C79E4BAB4758A8618EADB6FE /* NovelNest */,
+				737888819B6337311C19FB92 /* NovelNestTests */,
+				056764E2D3EC290CDCA1B48A /* Packages */,
+				D6CBB66D3E5C15FF3A14ABC0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		0D67A521BE218FED4409E08F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				432D35BCF2D2AFDBDD46E669 /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		213F48F69A3243D80139BA2C /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				4793E5617E8C4527515B3C43 /* BookshelfView.swift */,
+				9DADE2F15FE384E76B732EB1 /* LibraryService.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		65FAAE6327C907DFE2FA9945 /* Speech */ = {
+			isa = PBXGroup;
+			children = (
+				DD2E3A4DF66AD9CEB4BB7EAC /* SpeechController.swift */,
+			);
+			path = Speech;
+			sourceTree = "<group>";
+		};
+		737888819B6337311C19FB92 /* NovelNestTests */ = {
+			isa = PBXGroup;
+			children = (
+				50BCC466EE3D86436F2D2594 /* LibraryServiceTests.swift */,
+			);
+			path = NovelNestTests;
+			sourceTree = "<group>";
+		};
+		C79E4BAB4758A8618EADB6FE /* NovelNest */ = {
+			isa = PBXGroup;
+			children = (
+				A762BE31AFA3A666648F1552 /* Assets.xcassets */,
+				6F98FE6E5340937761B20A56 /* NovelNestApp.swift */,
+				213F48F69A3243D80139BA2C /* Library */,
+				0D67A521BE218FED4409E08F /* Models */,
+				03802022DE81698523035A12 /* Reader */,
+				E8E8B42628674339C13F40B9 /* Settings */,
+				65FAAE6327C907DFE2FA9945 /* Speech */,
+			);
+			path = NovelNest;
+			sourceTree = "<group>";
+		};
+		D6CBB66D3E5C15FF3A14ABC0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E311D68DD0005B7551D5DF57 /* NovelNest.app */,
+				DE0D5F5E99FFACDAEFB1B101 /* NovelNestTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E8E8B42628674339C13F40B9 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				BAFD819B58D9D106A0DD78C7 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		33BA56EF1210E26451CADB78 /* NovelNestTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CDA29C1A326A73E043EB0515 /* Build configuration list for PBXNativeTarget "NovelNestTests" */;
+			buildPhases = (
+				8FBBE82310DAA1F59B232B89 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E68DD76D8D66D31D82DB0C7D /* PBXTargetDependency */,
+			);
+			name = NovelNestTests;
+			packageProductDependencies = (
+			);
+			productName = NovelNestTests;
+			productReference = DE0D5F5E99FFACDAEFB1B101 /* NovelNestTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		358DDFB1B14FFF3E41DD29B1 /* NovelNest */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4D8F9359F940B09E3DC57EFA /* Build configuration list for PBXNativeTarget "NovelNest" */;
+			buildPhases = (
+				940016243BBC9D176AB320C9 /* Sources */,
+				8A6FF91376CA21F90AFB1E27 /* Resources */,
+				2084409B1CEB174D317C7C90 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NovelNest;
+			packageProductDependencies = (
+				580DED968B3D42B4DA5297D9 /* NovelNestCore */,
+			);
+			productName = NovelNest;
+			productReference = E311D68DD0005B7551D5DF57 /* NovelNest.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EBA06BF9306208DE3AEECA9C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					358DDFB1B14FFF3E41DD29B1 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = C68A2E715800823C05D30B4E /* Build configuration list for PBXProject "NovelNest" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0965613F1636612CFC00AFF1;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AEF996FBCD17AFF8321AA282 /* XCLocalSwiftPackageReference "NovelNestCore" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D6CBB66D3E5C15FF3A14ABC0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				358DDFB1B14FFF3E41DD29B1 /* NovelNest */,
+				33BA56EF1210E26451CADB78 /* NovelNestTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8A6FF91376CA21F90AFB1E27 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3190FE85FE34C3C3D164AABD /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8FBBE82310DAA1F59B232B89 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A65BF04729D70B1DBA25A6A2 /* LibraryServiceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		940016243BBC9D176AB320C9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				36DD1A5CAAB50252BB60224C /* BookshelfView.swift in Sources */,
+				EE7E5CBDB3988634A087CB97 /* LibraryService.swift in Sources */,
+				C4E02283DF094242A5435DA2 /* Models.swift in Sources */,
+				1D9AA1BF6EB0241B7D30A7D6 /* NovelNestApp.swift in Sources */,
+				BCDF097BC091D6C4CF5C0597 /* ReaderAppearance.swift in Sources */,
+				5F2862C7C39633C96529B64E /* ReaderView.swift in Sources */,
+				5723AC0A2BAC24571BB5E17F /* SettingsView.swift in Sources */,
+				8E764F464374BFC8088564C2 /* SpeechController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E68DD76D8D66D31D82DB0C7D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 358DDFB1B14FFF3E41DD29B1 /* NovelNest */;
+			targetProxy = DCF4A7D64171A56145839CEC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1DAD18BCB1C84AF800CC3A7E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = NovelNest;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.frankdeng2227.NovelNest;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		261C3B6EDA17A5F7602E78F8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		2BC3903A0C27681CF4AAD895 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.frankdeng2227.NovelNestTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NovelNest.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NovelNest";
+			};
+			name = Debug;
+		};
+		5F25136F914ECCFA8326B603 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		D91DD80B9FFC6FB6187ED8F5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = NovelNest;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.frankdeng2227.NovelNest;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F38E0C32C9BF185C4C056C4F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.frankdeng2227.NovelNestTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NovelNest.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NovelNest";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4D8F9359F940B09E3DC57EFA /* Build configuration list for PBXNativeTarget "NovelNest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DAD18BCB1C84AF800CC3A7E /* Debug */,
+				D91DD80B9FFC6FB6187ED8F5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C68A2E715800823C05D30B4E /* Build configuration list for PBXProject "NovelNest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				261C3B6EDA17A5F7602E78F8 /* Debug */,
+				5F25136F914ECCFA8326B603 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CDA29C1A326A73E043EB0515 /* Build configuration list for PBXNativeTarget "NovelNestTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2BC3903A0C27681CF4AAD895 /* Debug */,
+				F38E0C32C9BF185C4C056C4F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AEF996FBCD17AFF8321AA282 /* XCLocalSwiftPackageReference "NovelNestCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = NovelNestCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		580DED968B3D42B4DA5297D9 /* NovelNestCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NovelNestCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = EBA06BF9306208DE3AEECA9C /* Project object */;
+}
