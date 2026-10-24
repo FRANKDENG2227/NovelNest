@@ -16,11 +16,10 @@ by most recently opened.
 The app must be useful even when a source is unavailable: locally
 imported or lawfully downloaded books remain readable offline.
 
-Primary content is **Chinese web novels** (简体 and 繁體). Source
-adapters, text cleaning, chapter parsing, and the data model are
-designed around Chinese novel-site page structures (书页 / 目录 / 正文),
-legacy encodings (GBK/GB18030/Big5), simplified/traditional display
-conversion, and multi-page chapters. See §10A.
+Primary content is **Chinese web novels**. Source adapters, text
+cleaning, chapter parsing, and the data model are designed around
+Chinese novel-site page structures (书页 / 目录 / 正文), legacy
+encodings (GBK/GB18030/Big5), and multi-page chapters. See §10A.
 
 ### Non-goals for MVP
 
@@ -32,6 +31,8 @@ conversion, and multi-page chapters. See §10A.
 -   Do not redistribute copyrighted books or expose a public library.
 -   Do not build AI summarization or social/community features in the
     first release.
+-   No simplified/traditional (简繁) display conversion; text is shown
+    in its original script.
 
 ## 2. Legal and source-policy requirements
 
@@ -212,9 +213,9 @@ Chinese-specific rules: - Chunk on sentence-ending punctuation
 `。！？…；` and closing quotes `」』”` that follow them; never split
 inside a quotation pair if avoidable. - Speak the cleaned text (§10A.4);
 never speak removed boilerplate, navigation text, or the duplicated
-chapter title. - Pick a zh-CN voice for simplified display and
-zh-TW/zh-HK for traditional display (§10A.7), falling back to any
-available Chinese voice. - Optionally skip `authorNote` chapters
+chapter title. - Pick a zh-CN voice for simplified text and
+zh-TW/zh-HK for traditional text (`Book.originalScript`, §10A.7),
+falling back to any available Chinese voice. - Optionally skip `authorNote` chapters
 (`ttsSkipAuthorNotes`).
 
 ## 9. Downloading and refresh behavior
@@ -483,26 +484,18 @@ show them as one chapter.
 **(d) Cross-source merging** of the same book from different sources is
 a non-goal for MVP.
 
-### 10A.7 Simplified / traditional (简繁) conversion
+### 10A.7 Simplified / traditional script
 
-- Store the **original** text only. Convert at render time and for TTS.
-- User setting `displayScript`: `original | hans | hant | hantTW |
-  hantHK`.
-- Engine: bundled **OpenCC** dictionaries (Apache-2.0, phrase-level
-  conversion, including regional vocabulary for TW/HK). Fallback: ICU
-  `Hant-Hans` / `Hans-Hant` transforms via
-  `String.applyingTransform`, which are character-level only.
-- Cache converted chapters keyed by
-  (`contentHash`, target script, converter version).
-- Script detection: count characters unique to simplified vs
-  traditional; store `Book.originalScript` and
-  `Chapter.detectedScript`.
-- Search and dedupe use `normalizedTitle` / `normalizedAuthor`:
-  converted to simplified, with whitespace and punctuation removed, so
-  a 繁體 query finds a 简体 title and vice versa.
-- Reading and speech positions (`paragraphIndex`, `characterOffset`)
-  always refer to the **original** text, so switching scripts never
-  moves the user's position.
+**No 简繁 conversion.** Text is always displayed and spoken exactly in
+the script the source or file provides. Simplified/traditional display
+conversion is a non-goal.
+
+- Script detection (count characters unique to simplified vs
+  traditional) is used only to pick a TTS voice; store the result in
+  `Book.originalScript`.
+- Search and dedupe use `normalizedTitle` / `normalizedAuthor`: the
+  original title/author with whitespace and punctuation removed (no
+  script conversion).
 
 ## 11. Suggested data model
 
@@ -549,8 +542,7 @@ identifiers.
 -   `isDownloaded: Bool`
 -   `downloadState: enum`
 -   `originalScript: hans | hant | mixed | unknown`
--   `normalizedTitle: String` (simplified, no whitespace/punctuation;
-    §10A.7)
+-   `normalizedTitle: String` (no whitespace/punctuation; §10A.7)
 -   `normalizedAuthor: String?`
 -   `category: String?`
 -   `serialStatus: ongoing | completed | unknown` (连载 / 完结)
@@ -583,7 +575,6 @@ Unique: (`sourceId`, `sourceBookId`).
 -   `contentHash: String` (of cleaned text)
 -   `rawContentHash: String?` (of decoded text before cleaning)
 -   `contentEncoding: String?` (encoding actually used to decode)
--   `detectedScript: hans | hant | mixed | unknown`
 -   `contentQuality: ok | garbled | placeholder | truncated | empty`
 -   `cleanerVersion: Int`
 -   `pageCount: Int` (pages merged into this chapter; §10A.6)
@@ -610,12 +601,11 @@ chapter ID, (`bookId`, normalized `sourceURL`).
 -   `normalizedProgress: Double`
 -   `updatedAt: Date`
 
-`paragraphIndex` and `characterOffset` always refer to the
-original-script cleaned text, never to a converted (简↔繁) rendering.
+`paragraphIndex` and `characterOffset` refer to the cleaned chapter
+text.
 
 ### UserPreferences
 
--   `displayScript: original | hans | hant | hantTW | hantHK`
 -   `hideAuthorNotes: Bool`
 -   `ttsSkipAuthorNotes: Bool`
 
@@ -724,10 +714,6 @@ in §10A.1. Do not copy pages from real sites into the repository.
 -   Boilerplate lines and the repeated title are removed; story text and
     punctuation are byte-for-byte unchanged otherwise.
 -   Placeholder bodies are flagged `placeholder`.
--   Switching `displayScript` between simplified and traditional keeps
-    the reading position on the same paragraph and offset.
--   A traditional-script search finds a simplified title and vice
-    versa.
 
 ## 14. Implementation phases
 
@@ -737,7 +723,6 @@ in §10A.1. Do not copy pages from real sites into the repository.
 -   Import EPUB/TXT through fileImporter.
 -   TXT: encoding detection (UTF-8/GB18030/Big5) and chapter splitting
     (§10A.3, §10A.5).
--   简繁 display conversion and the `displayScript` setting (§10A.7).
 -   Build reader view, typography settings, chapter navigation.
 -   Add local persistence and recently-opened sorting.
 -   Add progress save/restore.
@@ -793,7 +778,7 @@ external analytics, cloud storage, or transmitting reading data. 13. Put
 the Chinese text pipeline in a pure-Swift module (e.g. a local Swift
 package `TextPipeline`) with no UI dependencies: `EncodingDetector`,
 `ChineseNumeral`, `ChapterTitleParser`, `ContentCleaner`,
-`ChapterMerger`, `ScriptConverter`. Each is unit-tested with the §13
+`ChapterMerger`. Each is unit-tested with the §13
 fixtures.
 
 ### Definition of done for the first milestone
