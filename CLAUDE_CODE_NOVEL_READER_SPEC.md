@@ -16,6 +16,12 @@ by most recently opened.
 The app must be useful even when a source is unavailable: locally
 imported or lawfully downloaded books remain readable offline.
 
+Primary content is **Chinese web novels** (简体 and 繁體). Source
+adapters, text cleaning, chapter parsing, and the data model are
+designed around Chinese novel-site page structures (书页 / 目录 / 正文),
+legacy encodings (GBK/GB18030/Big5), simplified/traditional display
+conversion, and multi-page chapters. See §10A.
+
 ### Non-goals for MVP
 
 -   Do not attempt to bypass paywalls, authentication, CAPTCHAs, bot
@@ -202,6 +208,15 @@ For Chinese novels, test punctuation-aware chunking and paragraph
 boundaries. Preserve original text and do not silently alter the saved
 chapter to improve speech.
 
+Chinese-specific rules: - Chunk on sentence-ending punctuation
+`。！？…；` and closing quotes `」』”` that follow them; never split
+inside a quotation pair if avoidable. - Speak the cleaned text (§10A.4);
+never speak removed boilerplate, navigation text, or the duplicated
+chapter title. - Pick a zh-CN voice for simplified display and
+zh-TW/zh-HK for traditional display (§10A.7), falling back to any
+available Chinese voice. - Optionally skip `authorNote` chapters
+(`ttsSkipAuthorNotes`).
+
 ## 9. Downloading and refresh behavior
 
 The goal is reliable, polite downloading---not avoiding bans by evading
@@ -266,6 +281,229 @@ source"), treat it as a format that may need translation into this app's
 schema. Do not assume the original rule syntax is directly executable or
 that the source grants permission to store content.
 
+## 10A. Chinese web-novel source adaptation
+
+Everything in this section describes **page structures and text
+processing only**. A structural template never enables a source by
+itself: each concrete site still needs the permission review in §2 and
+§10, and no real site is hard-coded in the app. Do not ship adapters for
+unreviewed sites.
+
+### 10A.1 Common page structures
+
+Chinese novel sites usually have four page types. Rules target each one
+separately.
+
+| Page | Chinese name | Typical content |
+|------|--------------|-----------------|
+| Search results | 搜索结果 | List of title / author / latest chapter / book URL |
+| Book info | 书页 / 简介页 | Title, author, category, 连载/完结 status, cover, intro, latest chapter, link to TOC |
+| Table of contents | 目录 / 章节列表 | Ordered chapter links, optionally grouped by volume |
+| Chapter | 正文 / 阅读页 | Chapter title, body, prev / 目录 / next links |
+
+**Book info.** Many sites expose structured metadata; prefer it over CSS
+selectors when present:
+
+```html
+<meta property="og:novel:book_name" content="…">
+<meta property="og:novel:author" content="…">
+<meta property="og:novel:category" content="…">
+<meta property="og:novel:status" content="连载中 | 已完结">
+<meta property="og:novel:latest_chapter_name" content="…">
+<meta property="og:novel:update_time" content="…">
+```
+
+Map status text to `serialStatus`: 连载/连载中 → `ongoing`,
+完结/已完结/完本 → `completed`, otherwise `unknown`.
+
+**Table of contents.** Common layouts:
+
+- `dl > dt + dd > a` — `dt` holds a volume or section header
+  (第一卷 …, 正文, 作品相关), `dd > a` holds chapter links.
+- `ul > li > a` (or `div.list > a`) — flat chapter list.
+- A leading **"最新章节" block** (the latest ~9–12 chapters, often newest
+  first) placed *before* the full list, usually separated by a `dt`
+  such as 《书名》正文. The rule must skip it (`toc.startAfterSelector`
+  or `toc.skipLeadingItems`), and dedupe by URL as a safety net.
+- **Paginated TOC**: page links in a `<select><option value=…>` or
+  下一页 links. Follow only documented pagination, with a page cap.
+- **Order**: some lists are newest-first; `toc.order: desc` reverses
+  them so `chapterIndex` always increases from the first chapter.
+
+**Chapter page.** Body in a single container (`#content`-style div),
+with prev / 目录 / next links nearby. Long chapters are often **split
+into several pages**:
+
+- URL pattern such as `{chapterId}.html`, `{chapterId}_2.html`,
+  `{chapterId}_3.html`.
+- Page indicators such as 第(1/3)页 in the title or body.
+- A link labelled **下一页** (next page of the same chapter) instead of
+  **下一章** (next chapter).
+
+See §10A.6 for merging.
+
+**Desktop vs mobile.** A desktop domain and its `m.` mobile domain are
+separate entries in `allowedDomains` and are reviewed separately. Their
+page structures usually differ, so each has its own rule set.
+
+### 10A.2 Rule schema extensions
+
+Add these fields to the §10 schema. All are declarative; unknown fields
+are rejected.
+
+- `encoding`: `auto | utf-8 | gb18030 | big5` (GBK/GB2312 map to
+  `gb18030`).
+- `defaultScript`: `hans | hant | unknown`.
+- `bookInfo.metaProperties`: map from book fields to `og:novel:*` meta
+  names.
+- `bookInfo.statusMap`: text → `ongoing | completed`.
+- `toc.itemSelector`: chapter link selector.
+- `toc.volumeSelector`: volume header selector (e.g. `dt`).
+- `toc.startAfterSelector` / `toc.skipLeadingItems`: skip the 最新章节
+  block.
+- `toc.pagination`: selector for TOC page links, plus `maxPages`.
+- `toc.order`: `asc | desc`.
+- `chapter.titleSelector`, `chapter.contentSelector`.
+- `chapter.nextPage`: `{ selector, textMatches: ["下一页"],
+  urlPattern: "{chapterId}_{n}.html" }`.
+- `chapter.maxPagesPerChapter`: hard cap (default 10).
+- `chapter.removeSelectors`: elements removed before text extraction.
+- `chapter.removeLines`: literal strings; a line containing one is
+  dropped. Regex is allowed only from a restricted subset (no
+  backreferences, no nested quantifiers) and runs with a time/length
+  limit to prevent ReDoS.
+
+### 10A.3 Encoding detection and 乱码 handling
+
+Many Chinese sites and most older TXT files use GBK/GB18030 or Big5.
+Decode in this order and stop at the first trusted answer:
+
+1. `charset` in the HTTP `Content-Type` header.
+2. Byte-order mark (UTF-8 / UTF-16).
+3. `<meta charset>` or `<meta http-equiv="Content-Type">`.
+4. The rule's `encoding` (if not `auto`).
+5. Heuristic: try UTF-8, GB18030, Big5 and keep the best quality score.
+
+Always decode GB2312/GBK with the **GB18030** decoder (a superset) and
+Big5 with **Big5-HKSCS**. On iOS, use
+`CFStringConvertEncodingToNSStringEncoding` with
+`kCFStringEncodingGB_18030_2000` / `kCFStringEncodingBig5_HKSCS_1999`.
+
+**Quality score** (higher is better), computed on decoded text:
+- ratio of U+FFFD replacement characters (penalty);
+- ratio of CJK characters to letters overall (reward for Chinese
+  sources);
+- known mojibake signatures (penalty): `锟斤拷`, `烫烫烫`, `屯屯屯`, and
+  Latin-1 artefacts such as `Ã`, `â€`, `å`, `æ` sequences inside
+  otherwise Chinese text.
+
+If every decoder scores below the threshold, store the chapter with
+`contentQuality = garbled`, show a "garbled text" notice, and **never
+overwrite an existing good copy** with the garbled one. Record the
+chosen encoding in `Chapter.contentEncoding`.
+
+The same detector runs for imported TXT files.
+
+### 10A.4 Content cleaning pipeline
+
+Cleaning is deterministic, versioned (`cleanerVersion`), and
+re-runnable when the cleaner improves. It changes layout and removes
+non-story text, but **never rewrites wording or punctuation**.
+
+Steps, in order:
+1. Remove `chapter.removeSelectors`, `<script>`, `<style>`, hidden
+   elements.
+2. Convert `<br>`, `<p>`, `<div>` boundaries into paragraph breaks.
+3. Decode HTML entities; normalize `&nbsp;`, full-width space U+3000
+   indentation (`　　`), and tabs into a single leading-indent style.
+4. Remove zero-width characters (U+200B–U+200D, U+FEFF).
+5. Remove a duplicated chapter title in the first lines of the body.
+6. Drop boilerplate lines: rule `removeLines` plus a small built-in
+   list, for example 本章未完，请点击下一页继续阅读 / 一秒记住 /
+   最新网址 / 手机用户请浏览 / 请收藏本站 / bare URLs and domain names.
+7. Collapse runs of blank lines; trim each paragraph.
+8. **Placeholder detection**: bodies such as 正在手打中 / 内容更新中 /
+   章节内容正在努力恢复, or bodies far shorter than the book's median
+   chapter, get `contentQuality = placeholder` and are re-checked on the
+   next refresh.
+
+**Obfuscated text is an access control.** If a site renders text
+through custom-font glyph mapping, injects deliberately scrambled
+characters, or otherwise hides text from automated readers, mark the
+source unsupported. Do not try to de-obfuscate it.
+
+### 10A.5 Chapter title parsing and numbering
+
+Parse each raw title into a number, kind, and display title. Keep the
+original as `rawTitle`.
+
+- Numbered chapter:
+  `第([〇零一二两三四五六七八九十百千万\d]+)[章节回]`.
+- Volume: `第([〇零一二两三四五六七八九十百千万\d]+)[卷集部篇]`,
+  or a TOC `dt` header.
+- Special kinds:
+  - `prologue`: 序章 / 楔子 / 引子 / 序言 / 前言
+  - `extra`: 番外 / 外传 / 后记 / 尾声
+  - `authorNote`: 完本感言 / 上架感言 / 请假条 / 单章 / 感言 / 公告
+- Chinese-numeral parser: handles 〇/零, 两, 十 at the start (十二 = 12),
+  百/千/万 units, and mixed Arabic digits. Covered by a table-driven test.
+
+`chapterIndex` is always the **source TOC order** and is canonical.
+`parsedNumber` is used only to warn about gaps or duplicates (sites
+often misnumber chapters), never to reorder them.
+
+The same parser splits imported TXT files into chapters: a line that
+matches a chapter or special-kind pattern, is short (≤ 40 characters),
+and stands alone becomes a chapter boundary. Text before the first
+match becomes a `prologue` chapter titled 前言 if it is non-empty.
+
+`hideAuthorNotes` hides `authorNote` chapters in the TOC and reader
+without deleting them.
+
+### 10A.6 Chapter merging and deduplication
+
+**(a) Multi-page chapters.** Starting from the chapter URL, follow
+`chapter.nextPage` while the link stays within the same chapter (URL
+pattern matches or the link text is 下一页, not 下一章 or 目录). Stop at
+`maxPagesPerChapter`. Concatenate the cleaned pages, dropping
+overlapping lines repeated at a page boundary. The chapter is complete
+only when **all pages** were fetched; otherwise it stays incomplete and
+the job retries it (same atomic rule as §9). Store `pageCount`.
+
+**(b) Split chapters in the TOC.** Titles such as …（上）/（下） or
+…（1）/（2） stay separate `Chapter` records. They share a
+`mergeGroupKey` (title without the suffix) so the reader can optionally
+show them as one chapter.
+
+**(c) TOC deduplication.**
+- Same normalized URL twice (e.g. the 最新章节 block) → one record.
+- Same title, different URL → keep both, set `isDuplicateTitle`, and
+  let the user hide one.
+
+**(d) Cross-source merging** of the same book from different sources is
+a non-goal for MVP.
+
+### 10A.7 Simplified / traditional (简繁) conversion
+
+- Store the **original** text only. Convert at render time and for TTS.
+- User setting `displayScript`: `original | hans | hant | hantTW |
+  hantHK`.
+- Engine: bundled **OpenCC** dictionaries (Apache-2.0, phrase-level
+  conversion, including regional vocabulary for TW/HK). Fallback: ICU
+  `Hant-Hans` / `Hans-Hant` transforms via
+  `String.applyingTransform`, which are character-level only.
+- Cache converted chapters keyed by
+  (`contentHash`, target script, converter version).
+- Script detection: count characters unique to simplified vs
+  traditional; store `Book.originalScript` and
+  `Chapter.detectedScript`.
+- Search and dedupe use `normalizedTitle` / `normalizedAuthor`:
+  converted to simplified, with whitespace and punctuation removed, so
+  a 繁體 query finds a 简体 title and vice versa.
+- Reading and speech positions (`paragraphIndex`, `characterOffset`)
+  always refer to the **original** text, so switching scripts never
+  moves the user's position.
+
 ## 11. Suggested data model
 
 Use stable UUIDs for internal IDs and separate source-specific
@@ -285,6 +523,11 @@ identifiers.
 -   `storageAllowed: Bool`
 -   `lastReviewedAt: Date?`
 -   `enabled: Bool`
+-   `mobileBaseURL: URL?` (separate reviewed domain, §10A.1)
+-   `encoding: auto | utf-8 | gb18030 | big5`
+-   `defaultScript: hans | hant | unknown`
+-   `ruleSchemaVersion: Int`
+-   `cleanerRuleSetVersion: Int`
 
 ### Book
 
@@ -305,20 +548,55 @@ identifiers.
 -   `lastReadAt: Date?`
 -   `isDownloaded: Bool`
 -   `downloadState: enum`
+-   `originalScript: hans | hant | mixed | unknown`
+-   `normalizedTitle: String` (simplified, no whitespace/punctuation;
+    §10A.7)
+-   `normalizedAuthor: String?`
+-   `category: String?`
+-   `serialStatus: ongoing | completed | unknown` (连载 / 完结)
+-   `latestChapterTitle: String?` (as reported by the source)
+-   `sourceUpdatedAt: Date?` (source's own update time, not ours)
+-   `tocURL: URL?`
+-   `wordCount: Int?`
+
+Unique: (`sourceId`, `sourceBookId`).
+
+### Volume (optional)
+
+-   `id: UUID`
+-   `bookId: UUID`
+-   `title: String` (e.g. 第一卷 …)
+-   `volumeIndex: Int`
 
 ### Chapter
 
 -   `id: UUID`
 -   `bookId: UUID`
 -   `sourceChapterId: String?`
--   `title: String`
--   `chapterIndex: Int`
--   `content: String` or local file reference
--   `contentHash: String`
+-   `title: String` (display title)
+-   `rawTitle: String` (exactly as in the source TOC)
+-   `chapterIndex: Int` (source TOC order; canonical)
+-   `volumeId: UUID?`
+-   `parsedNumber: Int?` (from 第N章; for warnings only)
+-   `chapterKind: normal | prologue | extra | authorNote | unknown`
+-   `content: String` or local file reference (cleaned text)
+-   `contentHash: String` (of cleaned text)
+-   `rawContentHash: String?` (of decoded text before cleaning)
+-   `contentEncoding: String?` (encoding actually used to decode)
+-   `detectedScript: hans | hant | mixed | unknown`
+-   `contentQuality: ok | garbled | placeholder | truncated | empty`
+-   `cleanerVersion: Int`
+-   `pageCount: Int` (pages merged into this chapter; §10A.6)
+-   `wordCount: Int?`
+-   `mergeGroupKey: String?` (groups （上）/（下） parts)
+-   `isDuplicateTitle: Bool`
 -   `sourceURL: URL?`
 -   `publishedAt: Date?`
 -   `fetchedAt: Date?`
 -   `isAvailableOffline: Bool`
+
+Unique: (`bookId`, `sourceChapterId`); when the source has no stable
+chapter ID, (`bookId`, normalized `sourceURL`).
 
 ### ReadingProgress
 
@@ -327,9 +605,19 @@ identifiers.
 -   `chapterId: UUID?`
 -   `chapterIndex: Int`
 -   `locationReference: String?`
--   `characterOffset: Int?`
+-   `paragraphIndex: Int?`
+-   `characterOffset: Int?` (within the paragraph)
 -   `normalizedProgress: Double`
 -   `updatedAt: Date`
+
+`paragraphIndex` and `characterOffset` always refer to the
+original-script cleaned text, never to a converted (简↔繁) rendering.
+
+### UserPreferences
+
+-   `displayScript: original | hans | hant | hantTW | hantHK`
+-   `hideAuthorNotes: Bool`
+-   `ttsSkipAuthorNotes: Bool`
 
 ### DownloadJob
 
@@ -416,12 +704,40 @@ the network.
     confirmation.
 -   Backup can be restored in a clean installation.
 
+### Chinese text pipeline
+
+Use small **synthetic** HTML/TXT fixtures for each structural template
+in §10A.1. Do not copy pages from real sites into the repository.
+
+-   GB18030, Big5, and UTF-8 (with and without BOM) fixtures decode
+    correctly; a mislabelled charset is recovered by the heuristic.
+-   Mojibake fixtures (`锟斤拷`, Latin-1 artefacts) are flagged
+    `garbled` and do not overwrite a good existing chapter.
+-   Chinese-numeral table: 一, 十, 十二, 二十, 一百零五, 两千, 一万零一,
+    〇, mixed digits.
+-   TXT import splits chapters correctly, including 序章/番外/感言 and a
+    leading untitled section.
+-   The 最新章节 block is skipped; duplicate URLs produce one chapter;
+    `desc` TOCs are reversed.
+-   A three-page chapter merges into one; a failure on page 2 leaves
+    the chapter incomplete.
+-   Boilerplate lines and the repeated title are removed; story text and
+    punctuation are byte-for-byte unchanged otherwise.
+-   Placeholder bodies are flagged `placeholder`.
+-   Switching `displayScript` between simplified and traditional keeps
+    the reading position on the same paragraph and offset.
+-   A traditional-script search finds a simplified title and vice
+    versa.
+
 ## 14. Implementation phases
 
 ### Phase 1 --- Local reader foundation
 
 -   Create SwiftUI project and tab navigation.
 -   Import EPUB/TXT through fileImporter.
+-   TXT: encoding detection (UTF-8/GB18030/Big5) and chapter splitting
+    (§10A.3, §10A.5).
+-   简繁 display conversion and the `displayScript` setting (§10A.7).
 -   Build reader view, typography settings, chapter navigation.
 -   Add local persistence and recently-opened sorting.
 -   Add progress save/restore.
@@ -442,7 +758,10 @@ the network.
 ### Phase 4 --- Source framework
 
 -   Implement source registry and permission review.
--   Define versioned safe rule schema and parser.
+-   Define versioned safe rule schema and parser, including the §10A.2
+    extensions.
+-   Content cleaner, placeholder detection, multi-page chapter merging,
+    and TOC dedupe (§10A.4, §10A.6).
 -   Add one verified, permitted source adapter.
 -   Add polite incremental refresh and task logs.
 
@@ -470,7 +789,12 @@ bypass, paywall bypass, or unauthorized copying. 10. Document setup,
 build, test, and simulator steps in README.md. 11. If a capability
 depends on Apple platform limitations, explain it and provide the
 closest compliant implementation. 12. Ask before adding paid services,
-external analytics, cloud storage, or transmitting reading data.
+external analytics, cloud storage, or transmitting reading data. 13. Put
+the Chinese text pipeline in a pure-Swift module (e.g. a local Swift
+package `TextPipeline`) with no UI dependencies: `EncodingDetector`,
+`ChineseNumeral`, `ChapterTitleParser`, `ContentCleaner`,
+`ChapterMerger`, `ScriptConverter`. Each is unit-tested with the §13
+fixtures.
 
 ### Definition of done for the first milestone
 
