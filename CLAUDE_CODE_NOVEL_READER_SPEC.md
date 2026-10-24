@@ -1,0 +1,480 @@
+# NovelNest iOS --- Product Requirements & Engineering Brief for Claude Code
+
+> Project status: initial specification\
+> Primary goal: a personal iOS novel reader/library with text-to-speech,
+> lawful source integration, offline downloads, reading-position sync,
+> and a recently-opened-first bookshelf.
+
+## 1. Product vision
+
+Build an iOS app for reading novels from multiple permitted sources and
+from user-imported files. Users can search/browse supported sources, add
+books to a personal library, read online or offline, listen using
+text-to-speech, resume exactly where they stopped, and see books sorted
+by most recently opened.
+
+The app must be useful even when a source is unavailable: locally
+imported or lawfully downloaded books remain readable offline.
+
+### Non-goals for MVP
+
+-   Do not attempt to bypass paywalls, authentication, CAPTCHAs, bot
+    protection, rate limits, or other access controls.
+-   Do not rotate IPs/proxies, spoof identities, or otherwise evade a
+    site's ban/throttling mechanisms.
+-   Do not scrape every arbitrary website automatically.
+-   Do not redistribute copyrighted books or expose a public library.
+-   Do not build AI summarization or social/community features in the
+    first release.
+
+## 2. Legal and source-policy requirements
+
+Implement source access as an explicit allowlist. A source may be
+enabled only when its access method and intended storage/use are
+permitted by the source's terms, license, or written authorization.
+
+Supported source types, in priority order: 1. Official APIs or official
+export/download endpoints. 2. Public-domain/openly licensed catalogs,
+after verifying the work and edition/translation license. 3. Websites
+for which automated access and local storage are explicitly authorized.
+4. User-provided local files such as EPUB, TXT, and other formats
+explicitly supported by the app.
+
+Before enabling a source, document: - Source name and base domain. -
+Official terms/license URL and date reviewed. - Whether automated access
+is allowed. - Whether chapter text may be stored locally and for how
+long. - Rate limits and required attribution. - Whether the source
+requires an API key or user authorization. - Contact/opt-out/removal
+procedure, if applicable.
+
+Respect robots.txt as a crawler policy signal, but do not treat
+robots.txt permission as a copyright license. Do not access private
+endpoints or content behind access controls without authorization. Do
+not use credentials, cookies, or tokens copied from other users. Stop on
+401, 403, CAPTCHA, explicit block pages, or a source's request to stop;
+do not retry by changing IPs or evading the restriction. Respect 429 and
+Retry-After. If rights/permission are unclear, disable persistent
+downloading and use an official link/open-in-browser flow instead.
+
+The app should keep source attribution and provenance for every
+imported/downloaded work. Provide removal of a book and its stored
+content. Private/personal use does not automatically make every copy
+lawful; confirm source-specific rights before enabling storage.
+
+## 3. Platforms and suggested architecture
+
+### iOS client
+
+Recommended MVP stack: - Swift + SwiftUI. - SwiftData for local metadata
+and reading state, or SQLite/Core Data if cross-version migrations or
+advanced querying justify it. - AVSpeechSynthesizer for on-device
+text-to-speech. - AVAudioSession for audio-session configuration;
+implement interruption and route-change handling. - URLSession for
+permitted source/API requests and downloads. - EPUB/TXT import using
+SwiftUI fileImporter and Uniform Type Identifiers. - BackgroundTasks
+only for best-effort refresh tasks; do not promise continuous background
+crawling on iOS. - XCTest for unit/integration tests.
+
+Prefer an offline-first design. Reading position, library metadata, and
+downloaded content should work without a server.
+
+### Optional self-hosted backend
+
+Use this only if the user wants multiple devices, centralized source
+adapters, or a web UI: - Python 3.12+ / FastAPI. - PostgreSQL for
+metadata, source registry, jobs, and sync state. - SQLAlchemy +
+Alembic. - httpx + BeautifulSoup4/lxml for permitted static HTML
+sources. - Playwright only when a permitted source genuinely requires
+JavaScript rendering. - Docker Compose for deployment. - A
+worker/scheduler can be added later; do not add Redis/Celery until
+actual concurrency needs justify it.
+
+Suggested separation: - iOS app: UI, local library, reader, audio
+playback, downloads, reading progress. - Source adapters: isolated
+implementation per permitted source. - Policy/permission registry:
+controls whether a source can be queried/downloaded. - Backend
+(optional): source crawling and metadata sync, only for approved
+sources. - Database: source metadata, book/chapter metadata, task state,
+reading progress sync. - Local file store: downloaded EPUB/TXT or
+chapter content, with checksums and provenance.
+
+Do not make the backend a generic arbitrary-URL fetch proxy. Validate
+hosts and redirect targets against an allowlist to prevent SSRF and
+access to localhost, private networks, link-local addresses, cloud
+metadata services, or other internal resources.
+
+## 4. Main user stories
+
+1.  As a user, I can add a book from a supported/authorized source or
+    import a local EPUB/TXT file.
+2.  As a user, I can search books from enabled sources.
+3.  As a user, I can open a book and read chapters.
+4.  As a user, I can download permitted content for offline reading and
+    see progress, errors, and storage size.
+5.  As a user, I can listen to the current chapter using iOS
+    text-to-speech.
+6.  As a user, I can pause/resume speech, skip forward/backward by
+    paragraph, adjust speaking rate, and continue with the next chapter.
+7.  As a user, the app saves the current chapter and approximate reading
+    position automatically.
+8.  As a user, the bookshelf sorts by the most recent time I opened a
+    book, not by last download/update time.
+9.  As a user, I can manually refresh a book and optionally enable a
+    permitted periodic update check.
+10. As a user, I can delete a book and its downloaded content.
+11. As a user, I can see where each book came from and whether it is
+    available offline.
+12. As a user, I can export or back up my own reading progress and
+    metadata where practical.
+
+## 5. Navigation and screens
+
+Use a simple tab-based SwiftUI app: - **Bookshelf**: recently opened
+first; filters for All / Downloaded / In progress / Finished; search and
+sorting controls. - **Discover**: search enabled sources, with source
+attribution and source status. - **Downloads**: active, queued,
+completed, failed, and paused downloads; cancel/retry controls. -
+**Settings**: speech voice/rate, download policy, storage usage, source
+permissions/attribution, privacy, backup/sync settings.
+
+Reader screen: - Chapter title and book title. - Typography controls
+(font size, line spacing, theme, margins). - Previous/next chapter. -
+Reading progress and chapter navigation. - Listen / pause / resume /
+stop controls. - Offline indicator. - Save position on scroll changes
+with debouncing, and on scene backgrounding. - Optional sleep timer if
+reliable with AVSpeechSynthesizer; defer if not.
+
+## 6. Recently opened bookshelf ordering
+
+Use a dedicated `lastOpenedAt` field on each library item. Update it
+when the user explicitly opens the book/reader, not when background sync
+runs, a download finishes, or a notification arrives.
+
+Default sort: `lastOpenedAt DESC NULLS LAST`, with never-opened books
+below opened books. For local SwiftData, implement equivalent ordering
+and test null behavior. Keep `lastReadAt` separately if the product
+needs to distinguish opening a book from actually reading.
+
+Do not sort the main bookshelf by `updatedAt`, `lastDownloadedAt`, or
+`lastSyncedAt`.
+
+## 7. Reading progress model
+
+Persist at least: - `bookId` - `chapterId` or stable source chapter
+identifier - `chapterIndex` - `position`: normalized progress or
+character/paragraph offset - `scrollOffset` only if needed and stable -
+`updatedAt` - `deviceId` if multi-device sync is implemented
+
+For EPUB, use a stable EPUB CFI or equivalent location reference where
+supported; do not rely only on a raw pixel scroll offset. For plain
+text, use chapter ID plus character/paragraph offset. Debounce frequent
+writes (for example 500--1000 ms) and force-save when leaving the reader
+or entering background. Do not lose progress when the app is killed.
+
+When content changes, attempt to restore by stable chapter ID; if that
+fails, fall back to nearest chapter index and then normalized progress.
+Clearly handle deleted/renumbered chapters.
+
+If syncing between devices is implemented, use a deterministic conflict
+policy based on `updatedAt` initially, and document its limitations.
+Avoid overwriting a newer position with a stale background update.
+
+## 8. Text-to-speech / listening requirements
+
+MVP should use `AVSpeechSynthesizer` for on-device TTS; it does not
+require uploading book text to a third-party speech service.
+
+Requirements: - Play, pause, continue, stop. - Select available system
+voices and speaking rate. - Sentence/paragraph-aware chunking to avoid
+feeding a huge novel as one utterance. - Queue chapters and move to the
+next chapter after completion. - Persist the approximate speech location
+so listening can resume. - Handle phone calls, Siri, headphones,
+Bluetooth route changes, and audio interruptions. - Avoid reading
+navigation labels or duplicated headers. - Provide a setting for whether
+audio may continue when the screen locks, subject to iOS audio-session
+behavior and App Store policy. - Test long chapters, punctuation,
+Chinese text, English text, mixed-language text, and unavailable
+voices. - TTS is not the same as downloadable audiobook audio. Do not
+imply a generated audio file exists unless an explicit audio-export
+feature is implemented.
+
+For Chinese novels, test punctuation-aware chunking and paragraph
+boundaries. Preserve original text and do not silently alter the saved
+chapter to improve speech.
+
+## 9. Downloading and refresh behavior
+
+The goal is reliable, polite downloading---not avoiding bans by evading
+a website's controls.
+
+-   Download only from official endpoints, open-license/public-domain
+    sources, user-provided files, or explicitly authorized sites.
+-   Prefer a site's official bulk download/export/API when available.
+-   Use a per-domain concurrency limit, conservative configurable
+    request interval, connection/read timeouts, bounded retries,
+    exponential backoff with jitter, and `Retry-After`.
+-   Use ETag/If-Modified-Since when supported.
+-   Cache successful responses and avoid re-fetching unchanged chapters.
+-   Do not fetch all chapters repeatedly when only new chapters are
+    needed.
+-   Pause a source on 401, 403, CAPTCHA, explicit block response, or
+    rights/permission uncertainty. Do not rotate IPs, use proxy pools,
+    spoof user agents to bypass blocks, or replay unauthorized cookies.
+-   On 429/503, honor server instructions and pause as required.
+-   Display download queue status and errors to the user.
+-   Store a source-specific `lastCheckedAt`, `lastSuccessfulSyncAt`,
+    `lastSeenChapterId`, and error status.
+-   Do not claim iOS can run a continuous background crawler; background
+    execution is opportunistic. For reliable scheduled source checks,
+    use a user-controlled self-hosted backend only for permitted
+    sources.
+
+Downloads must be resumable where the server supports range requests.
+Write to a temporary file, verify file size/type/checksum where
+possible, then atomically move into the library. Never mark a partial
+download as complete.
+
+## 10. Source adapter and rule format
+
+Do not blindly execute third-party "book source" JSON. A source file is
+untrusted input.
+
+Define a documented, versioned, declarative schema, for example: -
+`schemaVersion` - `sourceId` - `displayName` - `baseURL` - `termsURL` -
+`licenseNotes` - `permissionStatus`: `approved`, `manual_review`, or
+`disabled` - `allowedDomains` - `rateLimit`: minimum interval and
+concurrency - `search`: URL template or documented API endpoint -
+`bookInfo`: field extraction definitions - `toc`: chapter list and
+pagination definitions - `chapter`: content extraction definitions -
+`selectors`: CSS selectors and allowed attributes - `encoding` -
+`attributionTemplate` - `storageAllowed` - `lastReviewedAt`
+
+Rules should support only a small safe subset: - CSS selector
+selection. - Text extraction. - Attribute extraction. - Relative URL
+resolution. - Documented pagination. - Explicit JSON field paths for
+documented APIs.
+
+Rules must not support arbitrary Python/JavaScript execution, shell
+commands, dynamic module loading, arbitrary headers/cookies from
+untrusted files, or unrestricted URL templates. Validate every URL and
+redirect target against approved domains. Reject malformed/unknown rule
+fields rather than guessing. Require a manual permission review before
+enabling a source.
+
+If importing a third-party reader-app rule (for example a JSON "book
+source"), treat it as a format that may need translation into this app's
+schema. Do not assume the original rule syntax is directly executable or
+that the source grants permission to store content.
+
+## 11. Suggested data model
+
+Use stable UUIDs for internal IDs and separate source-specific
+identifiers.
+
+### Source
+
+-   `id: UUID`
+-   `name: String`
+-   `baseURL: URL`
+-   `termsURL: URL?`
+-   `licenseNotes: String`
+-   `permissionStatus: enum`
+-   `allowedDomains: [String]`
+-   `minimumRequestIntervalSeconds: Double`
+-   `maxConcurrency: Int`
+-   `storageAllowed: Bool`
+-   `lastReviewedAt: Date?`
+-   `enabled: Bool`
+
+### Book
+
+-   `id: UUID`
+-   `title: String`
+-   `author: String?`
+-   `language: String?`
+-   `descriptionText: String?`
+-   `coverURL: URL?`
+-   `sourceId: UUID?`
+-   `sourceBookId: String?`
+-   `sourceURL: URL?`
+-   `rights/attributionNotes: String?`
+-   `isFinished: Bool`
+-   `createdAt: Date`
+-   `updatedAt: Date`
+-   `lastOpenedAt: Date?`
+-   `lastReadAt: Date?`
+-   `isDownloaded: Bool`
+-   `downloadState: enum`
+
+### Chapter
+
+-   `id: UUID`
+-   `bookId: UUID`
+-   `sourceChapterId: String?`
+-   `title: String`
+-   `chapterIndex: Int`
+-   `content: String` or local file reference
+-   `contentHash: String`
+-   `sourceURL: URL?`
+-   `publishedAt: Date?`
+-   `fetchedAt: Date?`
+-   `isAvailableOffline: Bool`
+
+### ReadingProgress
+
+-   `id: UUID`
+-   `bookId: UUID`
+-   `chapterId: UUID?`
+-   `chapterIndex: Int`
+-   `locationReference: String?`
+-   `characterOffset: Int?`
+-   `normalizedProgress: Double`
+-   `updatedAt: Date`
+
+### DownloadJob
+
+-   `id: UUID`
+-   `bookId: UUID`
+-   `state: queued | running | paused | completed | failed | cancelled`
+-   `completedItems: Int`
+-   `totalItems: Int?`
+-   `bytesDownloaded: Int64`
+-   `lastError: String?`
+-   `createdAt: Date`
+-   `updatedAt: Date`
+
+For a local-only MVP, SwiftData models can implement these entities. If
+a backend is later introduced, define matching server-side models and
+versioned API DTOs rather than sharing database objects directly across
+the network.
+
+## 12. Security and privacy
+
+-   Store secrets in Keychain; never commit secrets.
+-   Avoid collecting user accounts or analytics unless needed and
+    clearly disclosed.
+-   Treat downloaded HTML, JSON, EPUB, and source rules as untrusted
+    data.
+-   Sanitize displayed HTML and avoid rendering arbitrary scripts.
+-   Restrict server-side outbound requests to allowlisted domains and
+    public IP addresses; validate redirects and DNS resolution to reduce
+    SSRF risk.
+-   Apply response-size limits, timeouts, content-type validation, and
+    decompression limits.
+-   Keep the database private; do not expose PostgreSQL directly to the
+    internet.
+-   Use HTTPS for remote APIs.
+-   Provide deletion and backup/restore workflows.
+-   Do not transmit reading history or novel text to external services
+    by default.
+-   TTS should be local by default; clearly disclose any future cloud
+    TTS option.
+
+## 13. Testing and acceptance criteria
+
+### Bookshelf
+
+-   Opening a book moves it to the top of the bookshelf immediately.
+-   Downloading or background syncing a book does not change
+    `lastOpenedAt`.
+-   Never-opened books appear after opened books.
+-   Sorting remains correct after app restart.
+
+### Reading progress
+
+-   Leave a chapter and reopen it: position is restored within a
+    reasonable tolerance.
+-   Force quit and relaunch: last saved position is restored.
+-   Switching chapters updates the stored chapter ID/index correctly.
+-   Content updates do not silently reset progress.
+
+### TTS
+
+-   Play/pause/resume/stop work.
+-   Speech advances through paragraphs and chapters without repeating or
+    skipping text.
+-   Audio interruption and headphone route changes are handled.
+-   Large chapters are chunked safely.
+-   Chinese punctuation and mixed-language text are tested.
+
+### Downloads
+
+-   Offline content opens in airplane mode.
+-   Interrupted downloads are not marked complete.
+-   Retrying a failed job does not duplicate chapters.
+-   `Retry-After` is honored.
+-   401/403/CAPTCHA/block responses pause the source rather than
+    triggering evasion.
+-   Disallowed sources cannot be enabled through a crafted configuration
+    file.
+
+### Data integrity
+
+-   Unique source IDs prevent duplicate books/chapters.
+-   Database migrations preserve existing reading progress.
+-   Delete-book removes associated local content and jobs according to
+    confirmation.
+-   Backup can be restored in a clean installation.
+
+## 14. Implementation phases
+
+### Phase 1 --- Local reader foundation
+
+-   Create SwiftUI project and tab navigation.
+-   Import EPUB/TXT through fileImporter.
+-   Build reader view, typography settings, chapter navigation.
+-   Add local persistence and recently-opened sorting.
+-   Add progress save/restore.
+
+### Phase 2 --- Text-to-speech
+
+-   Add AVSpeechSynthesizer controls and voice/rate settings.
+-   Implement paragraph chunking and chapter queue.
+-   Handle interruptions and persist listening position.
+
+### Phase 3 --- Offline library
+
+-   Add download manager, storage status, cancel/retry, integrity
+    checks.
+-   Store content in app-managed files and metadata in SwiftData.
+-   Add backup/export options where practical.
+
+### Phase 4 --- Source framework
+
+-   Implement source registry and permission review.
+-   Define versioned safe rule schema and parser.
+-   Add one verified, permitted source adapter.
+-   Add polite incremental refresh and task logs.
+
+### Phase 5 --- Optional backend and sync
+
+-   Add FastAPI/PostgreSQL only if multi-device sync or centralized
+    crawling is needed.
+-   Add authentication, API versioning, sync conflict handling,
+    monitoring and backups.
+-   Keep the app useful without the backend.
+
+## 15. Instructions to Claude Code
+
+Before coding: 1. Inspect the existing repository and report its
+structure. 2. If the repository is empty, scaffold a native SwiftUI iOS
+app; do not silently substitute a web app or React Native. 3. Write a
+short implementation plan and identify assumptions. 4. Build in small
+phases and keep the project compiling after each phase. 5. Start with
+Phase 1; do not attempt all features at once. 6. Add tests for
+persistence, sorting, and reading progress. 7. Use current stable Apple
+APIs and verify availability against the project's deployment target. 8.
+Do not invent working source adapters for websites that have not been
+reviewed. 9. Do not implement anti-ban evasion, proxy rotation, CAPTCHA
+bypass, paywall bypass, or unauthorized copying. 10. Document setup,
+build, test, and simulator steps in README.md. 11. If a capability
+depends on Apple platform limitations, explain it and provide the
+closest compliant implementation. 12. Ask before adding paid services,
+external analytics, cloud storage, or transmitting reading data.
+
+### Definition of done for the first milestone
+
+A native iOS app can import a local TXT/EPUB file, display a bookshelf
+sorted by most recently opened, open and read the book, save/restore the
+reading position after relaunch, and speak the text using
+AVSpeechSynthesizer. Source crawling and backend work come later.
