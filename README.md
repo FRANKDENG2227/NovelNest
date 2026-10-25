@@ -11,9 +11,28 @@ Phase 1 in progress.
 | Part | State |
 |------|-------|
 | `NovelNestCore` Swift package (text pipeline, speech chunking, bookshelf order, reading position) | Done, 41 tests pass |
-| SwiftUI iOS app: bookshelf, TXT import, reader, TOC, typography, progress save/restore, read aloud | Compiles; not yet run in a simulator |
+| SwiftUI iOS app: bookshelf, TXT import, reader, progress save/restore, read aloud | Runs in the simulator |
+| Immersive paged reader: tap to show/hide controls, left/right or up/down page turning across chapters, contents drawer, day backgrounds and night mode | Runs in the simulator |
+| Read aloud: paragraph highlight, automatic page turning, restart from the current page, volume/brightness/rate sheet | Runs in the simulator |
 | App tests (SwiftData import, ordering, progress, delete) | Compile; not yet run |
 | EPUB import | Not started |
+
+## Reader
+
+- Only the text shows while reading. Tap the page to bring up the top bar
+  and the panel (上一章 / 下一章, reading progress, 目录, 白天/夜间, 朗读,
+  设置); tap again to hide them.
+- Pages are laid out with TextKit and turned left/right or up/down;
+  turning past a chapter's last page continues with the next chapter.
+  Line and paragraph spacing follow the font size.
+- The position is saved to the character at the top of the page, so
+  switching page-turn mode or reopening the book returns to the same page.
+- The day background (white, beige, green, grey) is chosen in 设置;
+  night mode is always dark. The bookshelf and settings use the same colour.
+- 朗读 reads from the top of the current page, highlights the paragraph
+  and turns pages as it goes. Turning the page or jumping to a chapter
+  continues from there; leaving the book stops it. While reading, the
+  朗读 button opens pause/stop, volume, brightness and speed.
 
 ## Layout
 
@@ -22,8 +41,14 @@ project.yml                    XcodeGen definition of NovelNest.xcodeproj
 NovelNest/                     SwiftUI app (iOS 17+)
   Models/Models.swift          SwiftData Book / Chapter / ReadingProgress
   Library/                     Bookshelf view, import/progress/delete service
-  Reader/                      Reader, table of contents, typography settings
-  Speech/SpeechController.swift  AVSpeechSynthesizer playback
+  Reader/
+    ReaderView.swift           Immersive reader, control panel, contents drawer
+    PagedReaderView.swift      TextKit pagination in a UIPageViewController
+    ChapterStore.swift         Chapters loaded on demand, reading locations
+    ReaderAppearance.swift     Themes, font metrics, page-turn mode, settings
+  Speech/
+    SpeechController.swift     AVSpeechSynthesizer, one sentence at a time
+    SpeechSettingsView.swift   Pause/stop, volume, brightness, rate
   Settings/SettingsView.swift
 NovelNestTests/                App tests with an in-memory SwiftData store
 NovelNestCore/                 Pure-Swift package, no UI (iOS 17+, macOS 14+)
