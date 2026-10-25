@@ -20,6 +20,7 @@ struct BookshelfView: View {
     @State private var importMessage: String?
     @State private var bookToDelete: Book?
     @State private var openedBook: Book?
+    @AppStorage(AppStorageKey.theme) private var theme = ReaderTheme.light
 
     private var library: LibraryService { LibraryService(context: context) }
 
@@ -45,6 +46,8 @@ struct BookshelfView: View {
                     list
                 }
             }
+            // The page color of the reading theme.
+            .background(theme.background.ignoresSafeArea())
             .navigationTitle("书架")
             .navigationDestination(item: $openedBook) { ReaderView(book: $0) }
             .toolbar {
@@ -78,6 +81,7 @@ struct BookshelfView: View {
             }
             .pickerStyle(.segmented)
             .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
 
             ForEach(visibleBooks) { book in
                 Button {
@@ -86,13 +90,15 @@ struct BookshelfView: View {
                 } label: {
                     BookRow(book: book)
                 }
-                .foregroundStyle(.primary)
+                .foregroundStyle(theme.text)
+                .listRowBackground(Color.clear)
                 .swipeActions {
                     Button("删除", role: .destructive) { bookToDelete = book }
                 }
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .searchable(text: $searchText, prompt: "书名或作者")
     }
 

@@ -15,6 +15,8 @@ struct NovelNestApp: App {
 }
 
 struct ContentView: View {
+    @AppStorage(AppStorageKey.theme) private var theme = ReaderTheme.light
+
     var body: some View {
         TabView {
             BookshelfView()
@@ -22,5 +24,7 @@ struct ContentView: View {
             SettingsView()
                 .tabItem { Label("设置", systemImage: "gearshape") }
         }
+        // The whole app follows the reading theme: dark with 夜间, light otherwise.
+        .preferredColorScheme(theme.colorScheme)
     }
 }
