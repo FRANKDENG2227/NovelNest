@@ -2,8 +2,10 @@ import Foundation
 import NovelNestCore
 import SwiftData
 
-// SwiftData models for the local library (spec §11). Fields for web
-// sources (sourceId, sourceURL, page counts, …) come with Phase 4.
+// SwiftData models for the local library (spec §11). Books found with a
+// book source keep where they came from; their chapters' text is fetched
+// when first read. New fields are optional or defaulted so existing stores
+// migrate automatically.
 
 @Model
 final class Book: BookshelfItem {
@@ -23,6 +25,23 @@ final class Book: BookshelfItem {
     /// Set only when the user opens the book (§6).
     var lastOpenedAt: Date?
     var lastReadAt: Date?
+
+    // From a book source; nil for imported files.
+    /// `bookSourceUrl` of the `BookSource` it was found with.
+    var sourceURL: String?
+    var sourceName: String?
+    /// The book page; may carry Legado `,{options}`.
+    var bookURL: String?
+    var tocURL: String?
+    var coverURL: String?
+    var intro: String?
+    var category: String?
+    /// `SerialStatus` raw value.
+    var serialStatus: String?
+    var latestChapterTitle: String?
+    /// False while a web book is only being read from a search result; it
+    /// is deleted on leaving unless the reader adds it.
+    var isOnShelf: Bool = true
 
     @Relationship(deleteRule: .cascade, inverse: \Chapter.book)
     var chapters: [Chapter] = []
@@ -44,6 +63,8 @@ final class Book: BookshelfItem {
     }
 
     var script: ChineseScript { ChineseScript(rawValue: originalScript) ?? .unknown }
+
+    var isWebBook: Bool { bookURL != nil }
 
     /// Chapters in reading order. SwiftData relationships are unordered.
     var orderedChapters: [Chapter] { chapters.sorted { $0.chapterIndex < $1.chapterIndex } }
@@ -72,6 +93,10 @@ final class Chapter {
     @Attribute(.externalStorage) var content: String
     var paragraphCount: Int
     var wordCount: Int
+    /// The chapter page for web books; may carry Legado `,{options}`.
+    var sourceURL: String?
+    /// False for a web chapter whose text hasn't been fetched yet.
+    var isDownloaded: Bool = true
 
     init(index: Int, split: SplitChapter) {
         id = UUID()
@@ -84,6 +109,23 @@ final class Chapter {
         content = split.content
         paragraphCount = split.paragraphs.count
         wordCount = split.paragraphs.reduce(0) { $0 + $1.count }
+    }
+
+    /// A web chapter from the table of contents; its text comes later.
+    init(index: Int, toc item: WebTOCItem) {
+        id = UUID()
+        chapterIndex = index
+        title = item.title
+        rawTitle = item.title
+        let parsed = ChapterTitleParser.parse(item.title)
+        if case .chapter(let kind)? = parsed?.role { chapterKind = kind.rawValue } else { chapterKind = ChapterKind.normal.rawValue }
+        parsedNumber = parsed?.number
+        volumeTitle = item.volumeTitle
+        content = ""
+        paragraphCount = 0
+        wordCount = 0
+        sourceURL = item.url
+        isDownloaded = false
     }
 
     var kind: ChapterKind { ChapterKind(rawValue: chapterKind) ?? .unknown }
@@ -119,6 +161,66 @@ final class ReadingProgress {
     }
 }
 
+/// A Legado book source imported from yck (源仓库). Only supported sources
+/// can be enabled; the enabled ones are the sources the app may fetch from.
+@Model
+final class BookSource {
+    /// `bookSourceUrl`, the source's identity.
+    @Attribute(.unique) var sourceURL: String
+    var name: String
+    var group: String?
+    /// The translated `LegadoSource` as JSON.
+    var rawJSON: Data
+    /// The source's JSON object as imported, with the Legado fields the app
+    /// doesn't use, for exporting. Nil for sources imported before export.
+    var originalJSON: Data?
+    var isEnabled: Bool
+    /// Why the app can't run it; empty when supported.
+    var unsupportedReasons: [String]
+    /// The yck link it was imported from.
+    var subscriptionURL: String?
+    /// Why the last search on it failed (blocked, CAPTCHA, timeout, script
+    /// error); nil after it last answered.
+    var lastError: String?
+    var lastCheckedAt: Date?
+    /// Failed searches in a row.
+    var failureCount: Int = 0
+    var importedAt: Date
+    var updatedAt: Date
+
+    init(_ source: LegadoSource, original: Data?, subscriptionURL: String?) {
+        sourceURL = source.bookSourceUrl
+        name = source.bookSourceName
+        group = source.bookSourceGroup
+        rawJSON = source.encoded()
+        originalJSON = original
+        let reasons = SourceCompatibility.check(source).reasons
+        unsupportedReasons = reasons
+        isEnabled = reasons.isEmpty && source.enabled != false
+        self.subscriptionURL = subscriptionURL
+        importedAt = .now
+        updatedAt = .now
+    }
+
+    func update(from source: LegadoSource, original: Data?, subscriptionURL: String?) {
+        name = source.bookSourceName
+        group = source.bookSourceGroup
+        rawJSON = source.encoded()
+        originalJSON = original ?? originalJSON
+        unsupportedReasons = SourceCompatibility.check(source).reasons
+        if !unsupportedReasons.isEmpty { isEnabled = false }
+        self.subscriptionURL = subscriptionURL ?? self.subscriptionURL
+        updatedAt = .now
+    }
+
+    var isSupported: Bool { unsupportedReasons.isEmpty }
+
+    /// Can't be used: rules the app can't run, or the site failed last time.
+    var isUnusable: Bool { !isSupported || lastError != nil }
+
+    var legado: LegadoSource? { try? JSONDecoder().decode(LegadoSource.self, from: rawJSON) }
+}
+
 enum NovelNestSchema {
-    static let models: [any PersistentModel.Type] = [Book.self, Chapter.self, ReadingProgress.self]
+    static let models: [any PersistentModel.Type] = [Book.self, Chapter.self, ReadingProgress.self, BookSource.self]
 }

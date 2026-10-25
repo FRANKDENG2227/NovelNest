@@ -23,6 +23,15 @@ targets:
     sources: [NovelNest]
     dependencies:
       - package: NovelNestCore
+    info:
+      path: NovelNest/Info.plist
+      properties:
+        UIBackgroundModes: [audio]   # keep reading aloud with the screen locked
+        # Book sources are user-imported and many sites are plain http.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.frankdeng2227.NovelNest

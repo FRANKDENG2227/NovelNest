@@ -125,6 +125,10 @@ enum AppStorageKey {
     static let pageTurnMode = "reader.pageTurnMode"
     static let hideAuthorNotes = "reader.hideAuthorNotes"
     static let speechRate = "speech.rate"
+    /// `bookSourceUrl` of the source searched first and ranked first.
+    static let defaultSource = "search.defaultSource"
+    /// Recent search terms, one per line (`SearchHistory`); kept on the device.
+    static let searchHistory = "search.history"
 }
 
 /// Font size, background and page turning: the reader's 设置 sheet and the

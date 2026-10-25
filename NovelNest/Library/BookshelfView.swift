@@ -12,7 +12,8 @@ struct BookshelfView: View {
     }
 
     @Environment(\.modelContext) private var context
-    @Query private var books: [Book]
+    /// Books being read from a search without being added aren't shown.
+    @Query(filter: #Predicate<Book> { $0.isOnShelf }) private var books: [Book]
     @State private var filter = Filter.all
     @State private var searchText = ""
     @State private var isImporting = false
@@ -106,7 +107,7 @@ struct BookshelfView: View {
         ContentUnavailableView {
             Label("书架是空的", systemImage: "books.vertical")
         } description: {
-            Text("导入 TXT 文件开始阅读。支持 UTF-8、GBK/GB18030 和 Big5 编码。")
+            Text("导入 TXT 文件开始阅读，或在「找书」里用书源搜索。支持 UTF-8、GBK/GB18030 和 Big5 编码。")
         } actions: {
             Button("导入 TXT") { isImporting = true }
                 .buttonStyle(.borderedProminent)
@@ -142,10 +143,7 @@ private struct BookRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(String(book.title.prefix(1)))
-                .font(.title2.weight(.semibold))
-                .frame(width: 44, height: 60)
-                .background(Color.accentColor.opacity(0.15), in: .rect(cornerRadius: 6))
+            BookCover(url: book.coverURL.flatMap(URL.init(string:)), title: book.title)
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title).font(.headline).lineLimit(1)
                 if let author = book.author {
@@ -159,6 +157,7 @@ private struct BookRow: View {
 
     private var detail: String {
         var parts = ["\(book.chapters.count) 章"]
+        if let source = book.sourceName { parts.append(source) }
         if let progress = book.progress {
             parts.append("已读 \(Int(progress.normalizedProgress * 100))%")
         }

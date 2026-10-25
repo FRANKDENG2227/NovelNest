@@ -17,6 +17,8 @@ struct ReaderView: View {
     @AppStorage(AppStorageKey.pageTurnMode) private var pageTurnMode = PageTurnMode.vertical
 
     @State private var store: ChapterStore?
+    /// Fetches chapter text for web books; nil for imported files.
+    @State private var loader: ChapterLoader?
     /// Where the reader is: the first character on the page.
     @State private var location = ReaderLocation.start(of: 0)
     @State private var jump: ReaderJump?
@@ -25,6 +27,10 @@ struct ReaderView: View {
     @State private var showSpeechSettings = false
     @State private var showReaderSettings = false
     @State private var pendingSave: Task<Void, Never>?
+    @State private var showLeavePrompt = false
+    @State private var showChangeSource = false
+    /// Bumped when the chapters are replaced (换源) so the pages are rebuilt.
+    @State private var generation = 0
 
     private var library: LibraryService { LibraryService(context: context) }
     private var metrics: ReaderMetrics { ReaderMetrics(fontSize: fontSize) }
@@ -78,14 +84,40 @@ struct ReaderView: View {
             .presentationDetents([.medium])
             .presentationBackground(theme.background)
         }
+        .sheet(isPresented: $showChangeSource) {
+            ChangeSourceView(book: book, select: changeSource(to:))
+                .presentationBackground(theme.background)
+        }
+        .confirmationDialog("把《\(book.title)》加入书架？", isPresented: $showLeavePrompt, titleVisibility: .visible) {
+            Button("加入书架") {
+                library.addToShelf(book)
+                dismiss()
+            }
+            Button("不加入", role: .destructive) { dismiss() }
+            Button("继续阅读", role: .cancel) {}
+        } message: {
+            Text("不加入的话，阅读进度和已下载的章节不会保留。")
+        }
         .onAppear(perform: restore)
         .onDisappear {
             saveNow()
             // Leaving the book ends listening; sheets over the reader and
             // going to the background don't trigger this.
             if isSpeakingBook { speech.stop() }
+            // A book opened from a search and not added goes away; after a
+            // moment, so nothing on the way out still reads it.
+            if !book.isOnShelf {
+                let library = library
+                let book = book
+                let leftAt = Date.now
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    library.deleteIfNotOnShelf(book, leftAt: leftAt)
+                }
+            }
         }
         .onChange(of: location) { scheduleSave() }
+        .onChange(of: location.chapter) { _, chapter in loader?.prepare(around: chapter) }
         .onChange(of: scenePhase) { _, phase in if phase != .active { saveNow() } }
         // Follow the speech word by word, turning the page when it gets there.
         .onChange(of: speech.characterOffset) { followSpeech() }
@@ -96,17 +128,18 @@ struct ReaderView: View {
     private func pages(_ store: ChapterStore) -> some View {
         GeometryReader { proxy in
             PagedReaderView(store: store, metrics: metrics, theme: theme, mode: pageTurnMode, size: proxy.size,
-                            location: $location, jump: jump,
+                            contentVersion: loader?.version ?? 0, location: $location, jump: jump,
                             highlight: speechLocation.map { ReaderLocation(chapter: $0.chapter, paragraph: $0.paragraph) },
                             onTap: toggleControls, onPageTurn: moveSpeech(to:))
         }
-        // The page view's orientation is fixed when it is created.
-        .id(pageTurnMode)
+        // The page view's orientation is fixed when it is created, and its
+        // pages belong to one set of chapters.
+        .id([AnyHashable(pageTurnMode), AnyHashable(generation)])
     }
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button { dismiss() } label: {
+            Button(action: leave) {
                 Image(systemName: "chevron.left").font(.title3.weight(.semibold)).frame(width: 44, height: 44)
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -116,10 +149,32 @@ struct ReaderView: View {
                 }
             }
             Spacer()
+            if !book.isOnShelf {
+                Button("加入书架", systemImage: "plus") { library.addToShelf(book) }
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+            }
+            if book.isWebBook {
+                Button { showChangeSource = true } label: {
+                    Label("换源", systemImage: "arrow.triangle.2.circlepath").labelStyle(.iconOnly)
+                        .font(.title3).frame(width: 44, height: 44)
+                }
+            }
             Menu {
+                if !book.isOnShelf {
+                    Button("加入书架", systemImage: "plus") { library.addToShelf(book) }
+                }
+                if book.isWebBook {
+                    Button("换源", systemImage: "arrow.triangle.2.circlepath") { showChangeSource = true }
+                }
                 Button(book.isFinished ? "标记为未读完" : "标记为读完") {
                     book.isFinished.toggle()
                     try? context.save()
+                }
+                if let loader {
+                    Button("重新加载本章", systemImage: "arrow.clockwise") { loader.reload(location.chapter) }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle").font(.title3).frame(width: 44, height: 44)
@@ -196,7 +251,8 @@ struct ReaderView: View {
     private func startSpeech(_ store: ChapterStore) {
         let (paragraph, offset) = speechStart(location)
         speech.start(book: book, chapters: store.chapters, chapterIndex: location.chapter,
-                     paragraphIndex: paragraph, characterOffset: offset)
+                     paragraphIndex: paragraph, characterOffset: offset,
+                     ensureChapter: loader.map { loader in { await loader.ensure($0) } })
     }
 
     /// When the reader turns the page or jumps while listening, reading
@@ -230,12 +286,43 @@ struct ReaderView: View {
         withAnimation(.easeInOut(duration: 0.2)) { showControls.toggle() }
     }
 
+    /// Asks about the shelf first when the book was opened from a search.
+    private func leave() {
+        if book.isOnShelf { dismiss() } else { showLeavePrompt = true }
+    }
+
+    /// 换源: fetches the other source's contents, moves the book there and
+    /// reopens it at the matching chapter.
+    private func changeSource(to result: WebSearchResult) async -> String? {
+        guard let source = library.source(withURL: result.sourceURL) else { return "书源已删除" }
+        do {
+            let (detail, toc) = try await WebBookClient(source: source).book(at: result.bookURL, from: result)
+            guard !toc.isEmpty else { return "\(result.sourceName) 没有找到目录" }
+            if isSpeakingBook { speech.stop() }
+            saveNow()
+            loader?.cancel()
+            library.switchSource(book, to: detail, toc: toc, currentChapter: location.chapter)
+            store = nil
+            loader = nil
+            generation += 1
+            restore()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     private func restore() {
         guard store == nil else { return }
         let store = ChapterStore(chapters: book.orderedChapters)
         if let resolved = library.restorePosition(for: book) {
             location = ReaderLocation(chapter: resolved.chapterIndex, paragraph: resolved.paragraphIndex,
                                       offset: resolved.characterOffset)
+        }
+        if book.isWebBook {
+            let loader = ChapterLoader(store: store, book: book, context: context)
+            loader.prepare(around: location.chapter)
+            self.loader = loader
         }
         self.store = store
     }

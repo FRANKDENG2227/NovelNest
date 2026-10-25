@@ -10,6 +10,8 @@ struct PagedReaderView: UIViewControllerRepresentable {
     let theme: ReaderTheme
     let mode: PageTurnMode
     let size: CGSize
+    /// Changes when a chapter's text arrives (web books).
+    var contentVersion = 0
     @Binding var location: ReaderLocation
     let jump: ReaderJump?
     /// Paragraph being read aloud (only chapter and paragraph are used).
@@ -41,6 +43,9 @@ struct PagedReaderView: UIViewControllerRepresentable {
         var parent: PagedReaderView
         /// Paginated chapters for `layout`; cleared when the layout changes.
         private var chapters: [Int: PaginatedChapter] = [:]
+        /// `ChapterStore.revision` each paginated chapter was laid out from.
+        private var revisions: [Int: Int] = [:]
+        private var contentVersion = 0
         private var layout: PageLayout?
         private var theme: ReaderTheme?
         private var jumpID: UUID?
@@ -72,10 +77,26 @@ struct PagedReaderView: UIViewControllerRepresentable {
             }
             let layout = PageLayout(size: parent.size, metrics: parent.metrics)
             let jump = parent.jump.flatMap { $0.id == jumpID ? nil : $0 }
-            guard layout != self.layout || parent.theme != theme || jump != nil else { return }
+            // New chapter text is laid out once no turn is in progress.
+            var contentChanged = false
+            if parent.contentVersion != contentVersion, !swiping, !turningInCode {
+                contentVersion = parent.contentVersion
+                let stale = revisions.filter { parent.store.revision($0.key) != $0.value }.map(\.key)
+                for chapter in stale {
+                    chapters[chapter] = nil
+                    revisions[chapter] = nil
+                }
+                // The page view keeps the neighbouring pages, so the next
+                // or previous chapter changing matters too.
+                if let shown, stale.contains(where: { abs($0 - shown.chapter) <= 1 }) { contentChanged = true }
+            }
+            guard layout != self.layout || parent.theme != theme || jump != nil || contentChanged else { return }
 
-            let restyle = layout != self.layout || parent.theme != theme
-            if layout != self.layout { chapters = [:] }
+            let restyle = layout != self.layout || parent.theme != theme || contentChanged
+            if layout != self.layout {
+                chapters = [:]
+                revisions = [:]
+            }
             self.layout = layout
             theme = parent.theme
             jumpID = parent.jump?.id
@@ -122,6 +143,7 @@ struct PagedReaderView: UIViewControllerRepresentable {
             let result = PaginatedChapter(title: parent.store.title(chapter), paragraphs: parent.store.paragraphs(chapter),
                                           metrics: parent.metrics, textSize: layout?.textSize ?? .zero)
             chapters[chapter] = result
+            revisions[chapter] = parent.store.revision(chapter)
             return result
         }
 

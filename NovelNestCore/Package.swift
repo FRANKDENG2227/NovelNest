@@ -8,8 +8,12 @@ let package = Package(
     products: [
         .library(name: "NovelNestCore", targets: ["NovelNestCore"]),
     ],
+    dependencies: [
+        // HTML parsing and CSS selectors for book-source rules (MIT).
+        .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.7.0"),
+    ],
     targets: [
-        .target(name: "NovelNestCore"),
+        .target(name: "NovelNestCore", dependencies: ["SwiftSoup"]),
         .testTarget(name: "NovelNestCoreTests", dependencies: ["NovelNestCore"]),
     ]
 )

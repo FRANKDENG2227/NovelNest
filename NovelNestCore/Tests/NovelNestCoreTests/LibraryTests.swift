@@ -78,3 +78,42 @@ struct ReadingPositionTests {
         #expect(try JSONDecoder().decode(ReadingPosition.self, from: data) == position)
     }
 }
+
+struct ChapterMatcherTests {
+    let titles = ["序章", "第一章 出山", "第二章 云海", "第2章 云海（修）", "第三章 归途"]
+
+    @Test func matchesTitleIgnoringSpacing() {
+        #expect(ChapterMatcher.index(of: "第二章　云海", in: titles, fallback: 0) == 2)
+    }
+
+    @Test func fallsBackToTheChapterNumber() {
+        #expect(ChapterMatcher.index(of: "第3章 归途路上", in: titles, fallback: 0) == 4)
+        #expect(ChapterMatcher.index(of: "第二章 别名", in: titles, fallback: 3) == 3)
+    }
+
+    @Test func otherwiseKeepsThePositionInRange() {
+        #expect(ChapterMatcher.index(of: "后记", in: titles, fallback: 9) == 4)
+        #expect(ChapterMatcher.index(of: nil, in: titles, fallback: 1) == 1)
+        #expect(ChapterMatcher.index(of: "第一章", in: [], fallback: 5) == 0)
+    }
+}
+
+struct SearchHistoryTests {
+    @Test func keepsTheLatestSixWithoutRepeats() {
+        var history = SearchHistory()
+        for term in ["一", "二", "三", "四", "五", "六", "七"] { history.add(term) }
+        #expect(history.terms == ["七", "六", "五", "四", "三", "二"])
+        history.add(" 四 ")
+        #expect(history.terms == ["四", "七", "六", "五", "三", "二"])
+        history.add("   ")
+        #expect(history.terms.count == 6)
+    }
+
+    @Test func roundTripsThroughStorage() {
+        var history = SearchHistory(stored: "斗罗\n云海行")
+        history.add("凡人\n修仙")
+        history.remove("云海行")
+        #expect(SearchHistory(stored: history.stored).terms == ["凡人 修仙", "斗罗"])
+        #expect(SearchHistory(stored: "").terms.isEmpty)
+    }
+}

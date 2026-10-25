@@ -34,40 +34,8 @@ encodings (GBK/GB18030/Big5), and multi-page chapters. See §10A.
 -   No simplified/traditional (简繁) display conversion; text is shown
     in its original script.
 
-## 2. Legal and source-policy requirements
-
-Implement source access as an explicit allowlist. A source may be
-enabled only when its access method and intended storage/use are
-permitted by the source's terms, license, or written authorization.
-
-Supported source types, in priority order: 1. Official APIs or official
-export/download endpoints. 2. Public-domain/openly licensed catalogs,
-after verifying the work and edition/translation license. 3. Websites
-for which automated access and local storage are explicitly authorized.
-4. User-provided local files such as EPUB, TXT, and other formats
-explicitly supported by the app.
-
-Before enabling a source, document: - Source name and base domain. -
-Official terms/license URL and date reviewed. - Whether automated access
-is allowed. - Whether chapter text may be stored locally and for how
-long. - Rate limits and required attribution. - Whether the source
-requires an API key or user authorization. - Contact/opt-out/removal
-procedure, if applicable.
-
-Respect robots.txt as a crawler policy signal, but do not treat
-robots.txt permission as a copyright license. Do not access private
-endpoints or content behind access controls without authorization. Do
-not use credentials, cookies, or tokens copied from other users. Stop on
-401, 403, CAPTCHA, explicit block pages, or a source's request to stop;
-do not retry by changing IPs or evading the restriction. Respect 429 and
-Retry-After. If rights/permission are unclear, disable persistent
-downloading and use an official link/open-in-browser flow instead.
-
-The app should keep source attribution and provenance for every
-imported/downloaded work. Provide removal of a book and its stored
-content. Private/personal use does not automatically make every copy
-lawful; confirm source-specific rights before enabling storage.
-
+## 2. Source
+base on yck web https://www.yckceo.com/yuedu/tools/index.html. using thire shuyuan rule to obtain xiaoshuo.
 ## 3. Platforms and suggested architecture
 
 ### iOS client
@@ -223,8 +191,7 @@ falling back to any available Chinese voice. - Optionally skip `authorNote` chap
 The goal is reliable, polite downloading---not avoiding bans by evading
 a website's controls.
 
--   Download only from official endpoints, open-license/public-domain
-    sources, user-provided files, or explicitly authorized sites.
+-   Download from yck provided web.
 -   Prefer a site's official bulk download/export/API when available.
 -   Use a per-domain concurrency limit, conservative configurable
     request interval, connection/read timeouts, bounded retries,
@@ -252,9 +219,6 @@ download as complete.
 
 ## 10. Source adapter and rule format
 
-Do not blindly execute third-party "book source" JSON. A source file is
-untrusted input.
-
 Define a documented, versioned, declarative schema, for example: -
 `schemaVersion` - `sourceId` - `displayName` - `baseURL` - `termsURL` -
 `licenseNotes` - `permissionStatus`: `approved`, `manual_review`, or
@@ -279,9 +243,23 @@ enabling a source.
 
 If importing a third-party reader-app rule (for example a JSON "book
 source"), treat it as a format that may need translation into this app's
-schema. Do not assume the original rule syntax is directly executable or
-that the source grants permission to store content.
+schema. Do not assume the original rule syntax is directly executable.
 
+Implemented for yck (Legado) sources: default JSoup chains, `@css:`,
+JSONPath without filters, `&&` / `||` / `%%`,
+`##regex##replacement[###]` (guarded against ReDoS), `@put` / `@get`,
+`{{…}}` templates, URL options `,{method, body, charset, headers}`, and
+JavaScript (`@js:`, `<js>`, `jsLib`) in JavaScriptCore with a limited
+`java` object: `ajax` / `connect` through the same fetcher (source's own
+domains, throttled, stops on blocks), variables, Base64, hex, MD5, URL
+encoding, time formatting and rule evaluation. Only User-Agent, Referer,
+Accept, Accept-Language and Content-Type headers are taken from a source.
+Sources needing decryption, a built-in browser, cookies or logins, device
+IDs, files, Java classes, XPath or WebView are imported but cannot be
+enabled. Imported, enabled sources form the allowlist; requests and
+redirects must stay on a source's own domains. Scripts have no execution
+time limit (JavaScriptCore offers none publicly); network helpers time
+out after 20 seconds.
 ## 10A. Chinese web-novel source adaptation
 
 Everything in this section describes **page structures and text
@@ -770,7 +748,7 @@ persistence, sorting, and reading progress. 7. Use current stable Apple
 APIs and verify availability against the project's deployment target. 8.
 Do not invent working source adapters for websites that have not been
 reviewed. 9. Do not implement anti-ban evasion, proxy rotation, CAPTCHA
-bypass, paywall bypass, or unauthorized copying. 10. Document setup,
+bypass, paywall bypass. 10. Document setup,
 build, test, and simulator steps in README.md. 11. If a capability
 depends on Apple platform limitations, explain it and provide the
 closest compliant implementation. 12. Ask before adding paid services,

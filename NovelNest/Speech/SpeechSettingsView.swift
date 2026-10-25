@@ -32,20 +32,20 @@ struct SpeechSettingsView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 }
-                Section("音量 Volume") {
-                    HStack(spacing: 12) {
-                        Image(systemName: "speaker.fill")
-                        SystemVolumeSlider().frame(height: 34)
-                        Image(systemName: "speaker.wave.3.fill")
+                Section {
+                    Toggle("定时停止", isOn: Binding(get: { speech.sleepDeadline != nil },
+                                                 set: { speech.setSleepTimer(on: $0) }))
+                    HStack {
+                        stepButton(systemImage: "minus", disabled: !canShorten) { speech.changeSleepTimer(by: -1) }
+                        Spacer()
+                        sleepTimeLabel
+                        Spacer()
+                        stepButton(systemImage: "plus", disabled: !canLengthen) { speech.changeSleepTimer(by: 1) }
                     }
-                }
-                .listRowBackground(theme.secondaryBackground)
-                Section("亮度 Brightness") {
-                    HStack(spacing: 12) {
-                        Image(systemName: "sun.min")
-                        Slider(value: $brightness, in: 0...1)
-                        Image(systemName: "sun.max")
-                    }
+                } header: {
+                    Text("定时 Sleep timer")
+                } footer: {
+                    Text("时间到后暂停朗读。锁屏后会继续朗读，可在锁屏横幅上暂停、继续或切换上一章/下一章。")
                 }
                 .listRowBackground(theme.secondaryBackground)
                 Section {
@@ -62,6 +62,22 @@ struct SpeechSettingsView: View {
                     }
                 } footer: {
                     Text("新的语速从下一句开始。")
+                }
+                .listRowBackground(theme.secondaryBackground)
+                Section("音量 Volume") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "speaker.fill")
+                        SystemVolumeSlider().frame(height: 34)
+                        Image(systemName: "speaker.wave.3.fill")
+                    }
+                }
+                .listRowBackground(theme.secondaryBackground)
+                Section("亮度 Brightness") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "sun.min")
+                        Slider(value: $brightness, in: 0...1)
+                        Image(systemName: "sun.max")
+                    }
                 }
                 .listRowBackground(theme.secondaryBackground)
             }
@@ -81,6 +97,45 @@ struct SpeechSettingsView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(theme.text)
+    }
+
+    private func stepButton(systemImage: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.semibold))
+                .frame(width: 52, height: 44)
+                .background(theme.background, in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(disabled ? theme.text.opacity(0.3) : theme.text)
+        .disabled(disabled)
+    }
+
+    /// Time left while the timer runs, counting down; otherwise its length.
+    @ViewBuilder private var sleepTimeLabel: some View {
+        if let deadline = speech.sleepDeadline {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let left = max(deadline.timeIntervalSince(context.date), 0)
+                Text(Duration.seconds(left.rounded(.up)).formatted(.time(pattern: left >= 3600 ? .hourMinuteSecond : .minuteSecond)))
+                    .font(.title2.monospacedDigit())
+            }
+        } else {
+            Text("\(speech.sleepMinutes) 分钟").font(.title2.monospacedDigit())
+        }
+    }
+
+    private var canShorten: Bool {
+        if let deadline = speech.sleepDeadline {
+            return deadline.timeIntervalSinceNow > Double(SpeechController.sleepStep * 60)
+        }
+        return speech.sleepMinutes > SpeechController.sleepMinutesRange.lowerBound
+    }
+
+    private var canLengthen: Bool {
+        if let deadline = speech.sleepDeadline {
+            return deadline.timeIntervalSinceNow < Double(SpeechController.sleepMinutesRange.upperBound * 60)
+        }
+        return speech.sleepMinutes < SpeechController.sleepMinutesRange.upperBound
     }
 
     /// The rate relative to the system default, e.g. "1.2×".

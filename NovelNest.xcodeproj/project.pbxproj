@@ -8,18 +8,25 @@
 
 /* Begin PBXBuildFile section */
 		1D9AA1BF6EB0241B7D30A7D6 /* NovelNestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98FE6E5340937761B20A56 /* NovelNestApp.swift */; };
+		272EEFFFFF4EF67C3DA649DA /* BookPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385469DE1175846CCF45ED0F /* BookPreviewView.swift */; };
+		2E63228E508ED7926FB09F61 /* SilentAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E67CD9FB2AEDD49418F8FD6 /* SilentAudio.swift */; };
 		3190FE85FE34C3C3D164AABD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A762BE31AFA3A666648F1552 /* Assets.xcassets */; };
 		36DD1A5CAAB50252BB60224C /* BookshelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4793E5617E8C4527515B3C43 /* BookshelfView.swift */; };
+		4E6A77CEDF965955914E7799 /* WebLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022EB83996BB080EFC17B4F0 /* WebLibraryTests.swift */; };
 		5723AC0A2BAC24571BB5E17F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAFD819B58D9D106A0DD78C7 /* SettingsView.swift */; };
 		5F2862C7C39633C96529B64E /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004286FFA35A48F198211C6 /* ReaderView.swift */; };
+		640139D42F690895C832929C /* ChapterLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB89EC5255A1AEB826B42BBB /* ChapterLoader.swift */; };
 		6637F8B7816D92C715E969E8 /* NovelNestCore in Frameworks */ = {isa = PBXBuildFile; productRef = 580DED968B3D42B4DA5297D9 /* NovelNestCore */; };
 		8E764F464374BFC8088564C2 /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2E3A4DF66AD9CEB4BB7EAC /* SpeechController.swift */; };
 		948591BFB3C45C53BFBE58FE /* SpeechSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 380D6EE8BD7ECEBBC0F9D0BB /* SpeechSettingsView.swift */; };
 		A65BF04729D70B1DBA25A6A2 /* LibraryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BCC466EE3D86436F2D2594 /* LibraryServiceTests.swift */; };
 		AC260D9E234C3971E618B644 /* PagedReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9DEBA68A1A33D1BBDF9506 /* PagedReaderView.swift */; };
+		B4028B0881CBED81AA5B186A /* SourceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8295F222FAA27970F2F5BC /* SourceListView.swift */; };
 		BCDF097BC091D6C4CF5C0597 /* ReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 104B1BD1A6BCF2F8E376C293 /* ReaderAppearance.swift */; };
 		C4E02283DF094242A5435DA2 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432D35BCF2D2AFDBDD46E669 /* Models.swift */; };
 		C6B2DCC465BC9B649615C820 /* ChapterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E9B390F73F7792B05A7855 /* ChapterStore.swift */; };
+		DBBB210D74E27D07F7DF1BA5 /* ChangeSourceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F744CF6972964DBE5A8F0D /* ChangeSourceView.swift */; };
+		E61777AEB27AFC836FF7915B /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34EF1E3BDEE84903E10063C9 /* SearchView.swift */; };
 		EE7E5CBDB3988634A087CB97 /* LibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DADE2F15FE384E76B732EB1 /* LibraryService.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,22 +41,30 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		022EB83996BB080EFC17B4F0 /* WebLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLibraryTests.swift; sourceTree = "<group>"; };
 		104B1BD1A6BCF2F8E376C293 /* ReaderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderAppearance.swift; sourceTree = "<group>"; };
+		34EF1E3BDEE84903E10063C9 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		380D6EE8BD7ECEBBC0F9D0BB /* SpeechSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSettingsView.swift; sourceTree = "<group>"; };
+		385469DE1175846CCF45ED0F /* BookPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookPreviewView.swift; sourceTree = "<group>"; };
 		432D35BCF2D2AFDBDD46E669 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		4793E5617E8C4527515B3C43 /* BookshelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookshelfView.swift; sourceTree = "<group>"; };
 		50BCC466EE3D86436F2D2594 /* LibraryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryServiceTests.swift; sourceTree = "<group>"; };
+		6B8295F222FAA27970F2F5BC /* SourceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceListView.swift; sourceTree = "<group>"; };
 		6E9DEBA68A1A33D1BBDF9506 /* PagedReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagedReaderView.swift; sourceTree = "<group>"; };
 		6F98FE6E5340937761B20A56 /* NovelNestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovelNestApp.swift; sourceTree = "<group>"; };
 		74B169676A1A3EAF445901FC /* NovelNestCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NovelNestCore; path = NovelNestCore; sourceTree = SOURCE_ROOT; };
+		7E67CD9FB2AEDD49418F8FD6 /* SilentAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilentAudio.swift; sourceTree = "<group>"; };
+		89FE864D8B7352E12759DF50 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9DADE2F15FE384E76B732EB1 /* LibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryService.swift; sourceTree = "<group>"; };
 		A762BE31AFA3A666648F1552 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B004286FFA35A48F198211C6 /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
+		B2F744CF6972964DBE5A8F0D /* ChangeSourceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeSourceView.swift; sourceTree = "<group>"; };
 		BAFD819B58D9D106A0DD78C7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D3E9B390F73F7792B05A7855 /* ChapterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterStore.swift; sourceTree = "<group>"; };
 		DD2E3A4DF66AD9CEB4BB7EAC /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
 		DE0D5F5E99FFACDAEFB1B101 /* NovelNestTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NovelNestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E311D68DD0005B7551D5DF57 /* NovelNest.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NovelNest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB89EC5255A1AEB826B42BBB /* ChapterLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterLoader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +82,7 @@
 		03802022DE81698523035A12 /* Reader */ = {
 			isa = PBXGroup;
 			children = (
+				EB89EC5255A1AEB826B42BBB /* ChapterLoader.swift */,
 				D3E9B390F73F7792B05A7855 /* ChapterStore.swift */,
 				6E9DEBA68A1A33D1BBDF9506 /* PagedReaderView.swift */,
 				104B1BD1A6BCF2F8E376C293 /* ReaderAppearance.swift */,
@@ -110,9 +126,21 @@
 			path = Library;
 			sourceTree = "<group>";
 		};
+		45DE09F1CA4757F3F2120DCA /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				385469DE1175846CCF45ED0F /* BookPreviewView.swift */,
+				B2F744CF6972964DBE5A8F0D /* ChangeSourceView.swift */,
+				34EF1E3BDEE84903E10063C9 /* SearchView.swift */,
+				6B8295F222FAA27970F2F5BC /* SourceListView.swift */,
+			);
+			path = Search;
+			sourceTree = "<group>";
+		};
 		65FAAE6327C907DFE2FA9945 /* Speech */ = {
 			isa = PBXGroup;
 			children = (
+				7E67CD9FB2AEDD49418F8FD6 /* SilentAudio.swift */,
 				DD2E3A4DF66AD9CEB4BB7EAC /* SpeechController.swift */,
 				380D6EE8BD7ECEBBC0F9D0BB /* SpeechSettingsView.swift */,
 			);
@@ -123,6 +151,7 @@
 			isa = PBXGroup;
 			children = (
 				50BCC466EE3D86436F2D2594 /* LibraryServiceTests.swift */,
+				022EB83996BB080EFC17B4F0 /* WebLibraryTests.swift */,
 			);
 			path = NovelNestTests;
 			sourceTree = "<group>";
@@ -131,10 +160,12 @@
 			isa = PBXGroup;
 			children = (
 				A762BE31AFA3A666648F1552 /* Assets.xcassets */,
+				89FE864D8B7352E12759DF50 /* Info.plist */,
 				6F98FE6E5340937761B20A56 /* NovelNestApp.swift */,
 				213F48F69A3243D80139BA2C /* Library */,
 				0D67A521BE218FED4409E08F /* Models */,
 				03802022DE81698523035A12 /* Reader */,
+				45DE09F1CA4757F3F2120DCA /* Search */,
 				E8E8B42628674339C13F40B9 /* Settings */,
 				65FAAE6327C907DFE2FA9945 /* Speech */,
 			);
@@ -253,6 +284,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A65BF04729D70B1DBA25A6A2 /* LibraryServiceTests.swift in Sources */,
+				4E6A77CEDF965955914E7799 /* WebLibraryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -260,7 +292,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				272EEFFFFF4EF67C3DA649DA /* BookPreviewView.swift in Sources */,
 				36DD1A5CAAB50252BB60224C /* BookshelfView.swift in Sources */,
+				DBBB210D74E27D07F7DF1BA5 /* ChangeSourceView.swift in Sources */,
+				640139D42F690895C832929C /* ChapterLoader.swift in Sources */,
 				C6B2DCC465BC9B649615C820 /* ChapterStore.swift in Sources */,
 				EE7E5CBDB3988634A087CB97 /* LibraryService.swift in Sources */,
 				C4E02283DF094242A5435DA2 /* Models.swift in Sources */,
@@ -268,7 +303,10 @@
 				AC260D9E234C3971E618B644 /* PagedReaderView.swift in Sources */,
 				BCDF097BC091D6C4CF5C0597 /* ReaderAppearance.swift in Sources */,
 				5F2862C7C39633C96529B64E /* ReaderView.swift in Sources */,
+				E61777AEB27AFC836FF7915B /* SearchView.swift in Sources */,
 				5723AC0A2BAC24571BB5E17F /* SettingsView.swift in Sources */,
+				2E63228E508ED7926FB09F61 /* SilentAudio.swift in Sources */,
+				B4028B0881CBED81AA5B186A /* SourceListView.swift in Sources */,
 				8E764F464374BFC8088564C2 /* SpeechController.swift in Sources */,
 				948591BFB3C45C53BFBE58FE /* SpeechSettingsView.swift in Sources */,
 			);
@@ -292,6 +330,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NovelNest/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NovelNest;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -458,6 +497,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NovelNest/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NovelNest;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

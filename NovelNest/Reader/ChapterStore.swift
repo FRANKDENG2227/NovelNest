@@ -27,10 +27,15 @@ struct ReaderJump: Equatable {
 }
 
 /// The book's chapters with their paragraphs split on demand, so a long
-/// book doesn't load every chapter's text up front.
+/// book doesn't load every chapter's text up front. A web chapter whose
+/// text hasn't arrived shows a one-line placeholder.
 final class ChapterStore {
     let chapters: [Chapter]
     private var paragraphCache: [Int: [String]] = [:]
+    /// Bumped when a chapter's text arrives or fails, so its pages are
+    /// laid out again.
+    private var revisions: [Int: Int] = [:]
+    private var failures: [Int: String] = [:]
 
     init(chapters: [Chapter]) {
         self.chapters = chapters
@@ -43,10 +48,23 @@ final class ChapterStore {
     func title(_ index: Int) -> String { chapters[index].title }
 
     func paragraphs(_ index: Int) -> [String] {
+        guard chapters[index].isDownloaded else {
+            if let failure = failures[index] { return ["加载失败：\(failure)", "可以在右上角菜单中重新加载本章。"] }
+            return ["正在加载…"]
+        }
         if let cached = paragraphCache[index] { return cached }
         let paragraphs = chapters[index].paragraphs
         paragraphCache[index] = paragraphs
         return paragraphs
+    }
+
+    func revision(_ index: Int) -> Int { revisions[index, default: 0] }
+
+    /// The chapter's text arrived, failed or is being fetched again.
+    func contentChanged(_ index: Int, failure: String? = nil) {
+        paragraphCache[index] = nil
+        failures[index] = failure
+        revisions[index, default: 0] += 1
     }
 
     /// Progress through the whole book, 0...1, from the stored paragraph
