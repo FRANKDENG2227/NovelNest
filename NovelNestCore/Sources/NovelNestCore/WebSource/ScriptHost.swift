@@ -28,6 +28,37 @@ struct ScriptEnvironment: Sendable {
     }
 }
 
+/// Lets a client stop its scripts' network use, e.g. once a search timed
+/// out: from then on `java.ajax` fails at once.
+public final class ScriptBudget: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    public init() {}
+
+    public var isCancelled: Bool { lock.withLock { cancelled } }
+    public func cancel() { lock.withLock { cancelled = true } }
+}
+
+/// JavaScriptCore's execution time limit. It isn't in the public headers,
+/// so it is looked up at run time; when missing, scripts are only bounded
+/// by the request and nesting limits and by cancellation.
+enum ScriptWatchdog {
+    private typealias SetLimit = @convention(c) (JSContextGroupRef, Double, OpaquePointer?, UnsafeMutableRawPointer?) -> Void
+
+    private static let setLimit: SetLimit? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "JSContextGroupSetExecutionTimeLimit") else { return nil }
+        return unsafeBitCast(symbol, to: SetLimit.self)
+    }()
+
+    static var isAvailable: Bool { setLimit != nil }
+
+    /// Stops any single evaluation in `context` after `seconds` of running.
+    static func limit(_ context: JSContext, seconds: Double) {
+        setLimit?(JSContextGetGroup(context.jsGlobalContextRef), seconds, nil, nil)
+    }
+}
+
 /// `java.put` / `java.get` and `@put` / `@get` values, per source, kept in
 /// memory for the app's lifetime.
 final class SourceVariables: @unchecked Sendable {
@@ -51,9 +82,21 @@ final class SourceVariables: @unchecked Sendable {
 ///
 /// A host is used on one thread at a time; network helpers block that
 /// thread, so hosts run on `Offload`, never on the cooperative pool.
+///
+/// Limits, so a broken or hostile source can't hang or crash the app or
+/// keep hitting a site: each evaluation runs at most `timeLimit` seconds,
+/// a host makes at most `maxRequests` requests, rules and scripts nest at
+/// most `maxDepth` deep, and a cancelled budget stops requests at once.
 final class ScriptHost {
+    static let timeLimit = 5.0
+    static let maxRequests = 30
+    static let maxDepth = 8
+
     let source: LegadoSource
     let variables: SourceVariables
+    let budget: ScriptBudget
+    private var requestCount = 0
+    private var depth = 0
     var environment: ScriptEnvironment
     private(set) var content = ""
     private(set) var contentURL: URL
@@ -61,10 +104,11 @@ final class ScriptHost {
     private var context: JSContext?
 
     init(source: LegadoSource, environment: ScriptEnvironment = ScriptEnvironment(), variables: SourceVariables = .shared,
-         fetch: @escaping (String) -> ScriptResponse?) {
+         budget: ScriptBudget = ScriptBudget(), fetch: @escaping (String) -> ScriptResponse?) {
         self.source = source
         self.environment = environment
         self.variables = variables
+        self.budget = budget
         contentURL = source.baseURL
         fetchPage = fetch
     }
@@ -78,18 +122,55 @@ final class ScriptHost {
     /// Runs `code` with `result` bound to `input`; returns the value of the
     /// last expression as a Swift value (String, NSNumber, array, dictionary).
     func evaluate(_ code: String, result input: Any?, baseURL: URL? = nil) throws -> Any? {
+        if budget.isCancelled { throw CancellationError() }
+        guard depth < Self.maxDepth else {
+            runawayReason = "嵌套太深"
+            throw WebSourceError.runawayScript("嵌套太深")
+        }
+        depth += 1
+        defer { depth -= 1 }
         let context = try preparedContext()
+        // Values from an outer evaluation, restored after a nested one.
+        let saved = depth > 1 ? ["result", "baseUrl", "src"].map { context.objectForKeyedSubscript($0) } : []
+        defer {
+            for (name, value) in zip(["result", "baseUrl", "src"], saved) { context.setObject(value, forKeyedSubscript: name as NSString) }
+        }
         context.setObject(Self.bridge(input), forKeyedSubscript: "result" as NSString)
         context.setObject((baseURL ?? contentURL).absoluteString, forKeyedSubscript: "baseUrl" as NSString)
         context.setObject(content, forKeyedSubscript: "src" as NSString)
         for (name, value) in environment.globals { context.setObject(value, forKeyedSubscript: name as NSString) }
         context.exception = nil
         let value = context.evaluateScript(code)
+        // A limit hit in a nested call that the script swallowed still ends it.
+        if depth == 1, let runaway = runawayReason {
+            context.exception = nil
+            throw WebSourceError.runawayScript(runaway)
+        }
         if let exception = context.exception {
             context.exception = nil
-            throw WebSourceError.script(exception.toString() ?? "未知错误")
+            let message = exception.toString() ?? "未知错误"
+            if let runaway = runawayReason { throw WebSourceError.runawayScript(runaway) }
+            if message.contains("execution terminated") { throw WebSourceError.runawayScript("运行超过 \(Int(Self.timeLimit)) 秒") }
+            if budget.isCancelled { throw CancellationError() }
+            throw WebSourceError.script(message)
         }
         return value.flatMap(Self.swiftValue)
+    }
+
+    /// Set when a limit stopped the script, so a script that catches the
+    /// error still ends up reported as runaway.
+    private var runawayReason: String?
+
+    /// Counts a request against the limits; nil when it may go ahead,
+    /// otherwise the error to throw into the script.
+    private func admitRequest() -> String? {
+        if budget.isCancelled { return "已取消" }
+        guard requestCount < Self.maxRequests else {
+            runawayReason = "请求超过 \(Self.maxRequests) 次"
+            return runawayReason
+        }
+        requestCount += 1
+        return nil
     }
 
     func variable(_ key: String) -> String? { variables.get(key, source: source.bookSourceUrl) }
@@ -100,13 +181,22 @@ final class ScriptHost {
     private func preparedContext() throws -> JSContext {
         if let context { return context }
         guard let context = JSContext() else { throw WebSourceError.script("无法启动脚本引擎") }
+        ScriptWatchdog.limit(context, seconds: Self.timeLimit)
         let java = JSValue(newObjectIn: context)!
         func define(_ name: String, _ block: Any) {
             java.setObject(block, forKeyedSubscript: name as NSString)
         }
 
         let fetch: @convention(block) (String) -> Any? = { [weak self] url in
-            guard let response = self?.fetchPage(url) else { return nil }
+            guard let self else { return nil }
+            if let refusal = admitRequest() {
+                // Thrown into the script, which stops a request loop.
+                if let current = JSContext.current() {
+                    current.exception = JSValue(newErrorFromMessage: "NovelNest: \(refusal)", in: current)
+                }
+                return nil
+            }
+            guard let response = fetchPage(url) else { return nil }
             return ["body": response.body, "url": response.url, "code": response.code]
         }
         define("__fetch", fetch)
@@ -292,14 +382,55 @@ final class ScriptHost {
     }
 }
 
-/// Runs blocking work (scripts that wait on requests) on a GCD thread so
-/// the cooperative pool is never blocked.
+/// Runs blocking work (scripts that wait on requests, regular
+/// expressions) on a GCD thread so the cooperative pool is never blocked,
+/// at most `width` at a time so stuck work can't use up every thread.
 enum Offload {
+    static let width = 6
     static let queue = DispatchQueue(label: "NovelNest.scripts", qos: .userInitiated, attributes: .concurrent)
+    private static let slots = AsyncSemaphore(width)
 
     static func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
+        await slots.wait()
+        defer { slots.signal() }
+        return try await withCheckedThrowingContinuation { continuation in
             queue.async { continuation.resume(with: Result { try work() }) }
         }
+    }
+}
+
+/// A counting semaphore for async code.
+final class AsyncSemaphore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var available: Int
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(_ count: Int) {
+        available = count
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let ready = lock.withLock {
+                if available > 0 {
+                    available -= 1
+                    return true
+                }
+                waiters.append(continuation)
+                return false
+            }
+            if ready { continuation.resume() }
+        }
+    }
+
+    func signal() {
+        let next = lock.withLock {
+            if waiters.isEmpty {
+                available += 1
+                return nil as CheckedContinuation<Void, Never>?
+            }
+            return waiters.removeFirst()
+        }
+        next?.resume()
     }
 }

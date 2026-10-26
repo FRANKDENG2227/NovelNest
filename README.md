@@ -10,12 +10,12 @@ Phase 1 in progress.
 
 | Part | State |
 |------|-------|
-| `NovelNestCore` Swift package (text pipeline, speech chunking, bookshelf order, reading position, book-source rules and scripts) | Done, 79 tests pass |
+| `NovelNestCore` Swift package (text pipeline, speech chunking, bookshelf order, reading position, book-source rules and scripts) | Done, 97 tests pass |
 | SwiftUI iOS app: bookshelf, TXT import, reader, progress save/restore, read aloud | Runs in the simulator |
 | Immersive paged reader: tap to show/hide controls, left/right or up/down page turning across chapters, contents drawer, day backgrounds and night mode | Runs in the simulator |
 | Read aloud: paragraph highlight, automatic page turning, restart from the current page, volume/brightness/rate sheet | Runs in the simulator |
 | 找书: yck (源仓库) book sources with JavaScript, default source, read straight from a search, 加入书架, 换源 | Runs in the simulator |
-| App tests (SwiftData import, ordering, progress, delete, web books, sources, 换源, source checks, export) | 22 tests pass |
+| App tests (SwiftData import, ordering, progress, delete, web books, sources, 换源, source checks, export, script limits on iOS, pagination) | 28 tests pass |
 | EPUB import | Not started |
 
 ## Reader
@@ -26,6 +26,9 @@ Phase 1 in progress.
 - Pages are laid out with TextKit and turned left/right or up/down;
   turning past a chapter's last page continues with the next chapter.
   Line and paragraph spacing follow the font size.
+- Each chapter is laid out once and every page draws its glyphs from
+  that layout, so no line can fall between pages (laying a page's text
+  out again used to break lines differently and hide the last ones).
 - The position is saved to the character at the top of the page, so
   switching page-turn mode or reopening the book returns to the same page.
 - The day background (white, beige, green, grey) is chosen in 设置;
@@ -81,8 +84,16 @@ Phase 1 in progress.
   useful when a source's text is garbled.
 - A chapter's text is fetched when it's read, with the next two
   prefetched, and then kept locally; 重新加载本章 fetches it again.
-- Requests stay on the source's own domains, are spaced 0.5 s apart per
-  host, and stop on 401/403, CAPTCHA pages and 429/503 (spec §9).
+- Requests stay on the source's own site (never this device or the local
+  network), are spaced 0.5 s apart per host, stop on 401/403, CAPTCHA
+  pages and 429/503 (spec §9), and are cut off past 5 MB as they stream.
+  Covers load only from the source's site. Plain-http subscription links
+  ask for confirmation first.
+- Limits for broken or hostile sources: a script runs at most 5 s per
+  evaluation, makes at most 30 requests, nests at most 8 deep; one that
+  hits a limit is stopped and its source turned off. Regular expressions
+  stop after 0.5 s. A search gives up on a source after 10 s without
+  waiting for its scripts, which then can't make further requests.
 
 ## Layout
 

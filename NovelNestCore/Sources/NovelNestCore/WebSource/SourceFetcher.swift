@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public struct HTTPResponse: Sendable {
@@ -25,14 +26,16 @@ public protocol HTTPFetching: Sendable {
     func send(_ request: SourceRequest, allowedHosts: HostPolicy) async throws -> HTTPResponse
 }
 
-/// The domains a source may be fetched from: those of its own URLs and
-/// their subdomains (e.g. `m.` and `www.` of the same site).
+/// The domains a source may be fetched from: the site of its
+/// `bookSourceUrl` and that site's subdomains (e.g. `m.` and `www.`).
+/// Nothing on this device or the local network is ever allowed, so a
+/// source can't reach a router or other home devices (SSRF), nor pair a
+/// local address with an outside one to send what it read elsewhere.
 public struct HostPolicy: Sendable, Equatable {
     public var domains: Set<String>
 
     public init(source: LegadoSource) {
-        let urls = [source.baseURL, source.searchUrl.flatMap { SourceRequest.resolve(String($0.split(separator: ",").first ?? ""), base: source.baseURL) }]
-        domains = Set(urls.compactMap { $0?.host.map(Self.registrableDomain) })
+        domains = Set([source.baseURL.host].compactMap { $0 }.filter { !Self.isLocal($0) }.map(Self.registrableDomain))
     }
 
     public init(domains: Set<String>) {
@@ -40,18 +43,55 @@ public struct HostPolicy: Sendable, Equatable {
     }
 
     public func allows(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(), !Self.isLocal(host) else { return false }
         return domains.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
     private static let secondLevel: Set<String> = ["com", "net", "org", "gov", "edu", "co", "ac"]
 
-    /// `m.example.com.cn` → `example.com.cn`; IP addresses stay as they are.
+    /// Hosting domains where each subdomain belongs to someone else, so a
+    /// source on one may not reach the others.
+    static let sharedSuffixes: Set<String> = [
+        "github.io", "gitlab.io", "gitee.io", "netlify.app", "vercel.app", "pages.dev", "workers.dev",
+        "herokuapp.com", "blogspot.com", "web.app", "firebaseapp.com", "appspot.com", "azurewebsites.net",
+        "cloudfront.net", "glitch.me", "fly.dev", "onrender.com", "repl.co", "deno.dev", "surge.sh",
+    ]
+
+    /// `m.example.com.cn` → `example.com.cn`; `alice.github.io` stays whole.
     static func registrableDomain(_ host: String) -> String {
         let labels = host.lowercased().split(separator: ".")
         if labels.allSatisfy({ Int($0) != nil }) || labels.count <= 2 { return host.lowercased() }
-        let keep = labels.count >= 3 && secondLevel.contains(String(labels[labels.count - 2])) && labels.last!.count == 2 ? 3 : 2
+        var keep = labels.count >= 3 && secondLevel.contains(String(labels[labels.count - 2])) && labels.last!.count == 2 ? 3 : 2
+        if sharedSuffixes.contains(labels.suffix(2).joined(separator: ".")) { keep = 3 }
         return labels.suffix(keep).joined(separator: ".")
+    }
+
+    /// This device, the local network, or a special-use address: loopback,
+    /// private and link-local ranges (also written as one number or in hex,
+    /// e.g. `2130706433` = 127.0.0.1), `localhost`, `.local` names.
+    public static func isLocal(_ host: String) -> Bool {
+        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
+        if host.isEmpty || host == "localhost" { return true }
+        for suffix in [".localhost", ".local", ".lan", ".internal", ".home.arpa", ".intranet"] where host.hasSuffix(suffix) { return true }
+        if host.contains(":") { return isLocalIPv6(host) }
+        // Anything inet_aton reads as an address (dotted, decimal, hex, octal).
+        var address = in_addr()
+        guard host.allSatisfy({ $0.isHexDigit || $0 == "." || $0 == "x" }), inet_aton(host, &address) != 0 else {
+            return !host.contains(".")   // single-label names resolve on the local network
+        }
+        let ip = UInt32(bigEndian: address.s_addr)
+        let ranges: [(UInt32, UInt32)] = [
+            (0x0000_0000, 8), (0x0A00_0000, 8), (0x6440_0000, 10), (0x7F00_0000, 8), (0xA9FE_0000, 16),
+            (0xAC10_0000, 12), (0xC000_0000, 24), (0xC0A8_0000, 16), (0xC612_0000, 15), (0xE000_0000, 3),
+        ]
+        return ranges.contains { base, bits in ip >> (32 - bits) == base >> (32 - bits) }
+    }
+
+    private static func isLocalIPv6(_ host: String) -> Bool {
+        if host == "::1" || host == "::" { return true }
+        if host.hasPrefix("::ffff:") { return isLocal(String(host.dropFirst(7))) }
+        return ["fe8", "fe9", "fea", "feb", "fc", "fd", "ff"].contains(where: host.hasPrefix)
     }
 }
 
@@ -103,12 +143,12 @@ public final class URLSessionFetcher: HTTPFetching {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: urlRequest, delegate: RedirectGuard(policy: allowedHosts))
+            (data, response) = try await session.limitedData(for: urlRequest, maxBytes: Self.maxBytes,
+                                                             delegate: RedirectGuard(policy: allowedHosts))
         } catch let error as URLError where error.code == .timedOut {
             throw WebSourceError.timedOut
         }
         guard let http = response as? HTTPURLResponse else { throw WebSourceError.httpStatus(0) }
-        guard data.count <= Self.maxBytes else { throw WebSourceError.tooLarge }
         var headers: [String: String] = [:]
         for (key, value) in http.allHeaderFields {
             if let key = key as? String, let value = value as? String { headers[key] = value }
@@ -180,5 +220,28 @@ enum PageDecoder {
     static func looksLikeChallenge(_ text: String) -> Bool {
         let head = text.prefix(20_000).lowercased()
         return challengeMarkers.contains { head.contains($0) }
+    }
+}
+
+extension URLSession {
+    /// The response body, read as it arrives and abandoned as soon as it
+    /// passes `maxBytes`, so a huge or endless response can't fill memory.
+    public func limitedData(for request: URLRequest, maxBytes: Int,
+                            delegate: (any URLSessionTaskDelegate)? = nil) async throws -> (Data, URLResponse) {
+        let (bytes, response) = try await self.bytes(for: request, delegate: delegate)
+        if response.expectedContentLength > Int64(maxBytes) {
+            bytes.task.cancel()
+            throw WebSourceError.tooLarge
+        }
+        var data = Data()
+        data.reserveCapacity(Int(max(0, min(response.expectedContentLength, Int64(maxBytes)))))
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > maxBytes {
+                bytes.task.cancel()
+                throw WebSourceError.tooLarge
+            }
+        }
+        return (data, response)
     }
 }

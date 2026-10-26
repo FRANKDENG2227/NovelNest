@@ -117,14 +117,17 @@ struct LibraryService {
         var unsupported = 0
     }
 
-    enum SourceImportError: LocalizedError {
+    enum SourceImportError: LocalizedError, Equatable {
         case invalidLink
+        /// Plain http: anyone on the network could swap in other sources.
+        case insecure
         case download(String)
         case notSources
 
         var errorDescription: String? {
             switch self {
             case .invalidLink: "链接无效。请粘贴 http(s) 书源链接或 yuedu:// 导入链接。"
+            case .insecure: "这个链接没有加密（http）。在公共 Wi-Fi 等网络上，别人可以把内容换成恶意书源。"
             case .download(let reason): "下载书源失败：\(reason)"
             case .notSources: "这个链接里没有书源。"
             }
@@ -145,21 +148,24 @@ struct LibraryService {
     }
 
     /// Downloads a yck subscription and adds or updates its sources. A
-    /// source already here keeps the user's on/off choice.
-    func importSources(from link: String) async throws -> SourceImportSummary {
+    /// source already here keeps the user's on/off choice. Plain http
+    /// links need `allowInsecure`, after the user has been warned.
+    func importSources(from link: String, allowInsecure: Bool = false) async throws -> SourceImportSummary {
         guard let url = Self.subscriptionURL(from: link) else { throw SourceImportError.invalidLink }
+        guard url.scheme?.lowercased() == "https" || allowInsecure else { throw SourceImportError.insecure }
         let data: Data
         do {
             var request = URLRequest(url: url, timeoutInterval: 30)
             request.setValue("application/json", forHTTPHeaderField: "Accept")
-            let (body, response) = try await URLSession.shared.data(for: request)
+            let (body, response) = try await URLSession.shared.limitedData(for: request, maxBytes: 20_000_000)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw SourceImportError.download("HTTP \(http.statusCode)")
             }
-            guard body.count <= 20_000_000 else { throw SourceImportError.download("文件太大") }
             data = body
         } catch let error as SourceImportError {
             throw error
+        } catch WebSourceError.tooLarge {
+            throw SourceImportError.download("文件太大（超过 20 MB）")
         } catch {
             throw SourceImportError.download(error.localizedDescription)
         }
@@ -212,7 +218,8 @@ struct LibraryService {
     }
 
     /// Remembers whether a source answered a search. Rate limits aren't
-    /// counted against it.
+    /// counted against it; a runaway script (time, request or nesting
+    /// limit) turns the source off.
     func recordCheck(_ event: SourceSearchEvent) {
         let url = event.sourceURL
         let descriptor = FetchDescriptor<BookSource>(predicate: #Predicate { $0.sourceURL == url })
@@ -221,11 +228,12 @@ struct LibraryService {
         case .results:
             source.lastError = nil
             source.failureCount = 0
-        case .failed(_, true):
+        case .failed(_, .temporary):
             return
-        case .failed(let message, false):
+        case .failed(let message, let kind):
             source.lastError = message
             source.failureCount += 1
+            if kind == .runaway { source.isEnabled = false }
         }
         source.lastCheckedAt = .now
         try? context.save()

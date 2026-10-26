@@ -32,6 +32,7 @@ struct SourceListView: View {
     @State private var checkedCount = 0
     @State private var checkTotal = 0
     @State private var exportFile: ExportFile?
+    @State private var confirmInsecure = false
 
     private var library: LibraryService { LibraryService(context: context) }
 
@@ -112,7 +113,7 @@ struct SourceListView: View {
                     }
                     .disabled(unsupported.isEmpty && failing.isEmpty)
                 } footer: {
-                    Text("「不能用」包括规则不支持的书源，和上次搜索时网站拒绝访问、要求验证、超时或出错的书源。检测会用「\(Self.checkKeyword)」在每个已启用的书源搜索一次。")
+                    Text("「不能用」包括规则不支持的书源，和上次搜索时网站拒绝访问、要求验证、超时或出错的书源。脚本卡住、请求过多或嵌套过深的书源会自动关闭。检测会用「\(Self.checkKeyword)」在每个已启用的书源搜索一次。")
                 }
                 .listRowBackground(theme.secondaryBackground)
             }
@@ -135,6 +136,12 @@ struct SourceListView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("不支持 \(unsupported.count) 个，网站失效 \(failing.count) 个。已加入书架的书不受影响，但用这些书源的书将无法下载新章节。")
+        }
+        .alert("链接没有加密", isPresented: $confirmInsecure) {
+            Button("仍然导入", role: .destructive) { Task { await importLink(allowInsecure: true) } }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(LibraryService.SourceImportError.insecure.localizedDescription + "只在可信的网络上导入，或换成 https 链接。")
         }
         .alert("导入书源", isPresented: $showImport) {
             TextField("https://www.yckceo.com/…json", text: $link)
@@ -231,15 +238,17 @@ struct SourceListView: View {
         }
     }
 
-    private func importLink() async {
+    private func importLink(allowInsecure: Bool = false) async {
         isImporting = true
         defer { isImporting = false }
         do {
-            let summary = try await library.importSources(from: link)
+            let summary = try await library.importSources(from: link, allowInsecure: allowInsecure)
             var text = "新增 \(summary.added) 个，更新 \(summary.updated) 个。"
             if summary.unsupported > 0 { text += "\n其中 \(summary.unsupported) 个不支持，已保持关闭。" }
             message = text
             link = ""
+        } catch LibraryService.SourceImportError.insecure {
+            confirmInsecure = true
         } catch {
             message = error.localizedDescription
         }

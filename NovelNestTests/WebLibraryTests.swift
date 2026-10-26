@@ -195,18 +195,33 @@ struct SourceCheckTests {
         let source = try #require(try container.mainContext.fetch(FetchDescriptor<BookSource>()).first)
         #expect(!source.isUnusable)
 
-        library.recordCheck(event(.failed(message: "网站拒绝访问（403）", isTemporary: false)))
-        library.recordCheck(event(.failed(message: "网站要求验证", isTemporary: false)))
+        library.recordCheck(event(.failed(message: "网站拒绝访问（403）", kind: .failure)))
+        library.recordCheck(event(.failed(message: "网站要求验证", kind: .failure)))
         #expect(source.isUnusable)
         #expect(source.failureCount == 2)
         #expect(source.lastError == "网站要求验证")
 
-        library.recordCheck(event(.failed(message: "请求太频繁", isTemporary: true)))
+        library.recordCheck(event(.failed(message: "请求太频繁", kind: .temporary)))
         #expect(source.failureCount == 2)
+        #expect(source.isEnabled)
 
         library.recordCheck(event(.results([])))
         #expect(!source.isUnusable)
         #expect(source.failureCount == 0)
+    }
+
+    @Test func runawayScriptsTurnTheSourceOff() throws {
+        library.upsert([WebLibraryTests.source()], subscriptionURL: nil)
+        let source = try #require(try container.mainContext.fetch(FetchDescriptor<BookSource>()).first)
+        library.recordCheck(event(.failed(message: "书源脚本运行超过 5 秒", kind: .runaway)))
+        #expect(!source.isEnabled)
+        #expect(library.searchableSources().isEmpty)
+    }
+
+    @Test func plainHTTPSubscriptionsNeedConfirmation() async throws {
+        await #expect(throws: LibraryService.SourceImportError.insecure) {
+            try await library.importSources(from: "http://www.yckceo.com/yuedu/shuyuan/json/id/1.json")
+        }
     }
 
     @Test func deletingSourcesKeepsBooks() throws {
@@ -239,5 +254,29 @@ struct SourceExportTests {
         #expect(object["exploreUrl"] as? String == "热门::/hot")
         #expect(object["enabled"] as? Bool == false)
         #expect(try LegadoSource.decodeList(Data(contentsOf: url)).map(\.bookSourceName) == ["甲"])
+    }
+}
+
+struct ScriptSafetyOnDeviceTests {
+    /// The JavaScriptCore time limit is found on iOS too, so a looping
+    /// source script is stopped rather than burning the battery.
+    @Test(.timeLimit(.minutes(1)))
+    func runawayScriptIsStoppedOnIOS() async throws {
+        #expect(WebBookClient.scriptTimeLimitAvailable)
+        let source = LegadoSource(bookSourceUrl: "https://books.example.com", bookSourceName: "probe",
+                                  searchUrl: "/s?q={{key}}",
+                                  ruleSearch: .init(bookList: "@js:while(true){}", name: "tag.a@text", bookUrl: "tag.a@href"),
+                                  ruleContent: .init(content: "id.c@html"))
+        let start = ContinuousClock.now
+        await #expect(throws: WebSourceError.self) {
+            try await WebBookClient(source: source, fetcher: OnePageFetcher()).search("a")
+        }
+        #expect(ContinuousClock.now - start < .seconds(8))
+    }
+}
+
+private struct OnePageFetcher: HTTPFetching {
+    func send(_ request: SourceRequest, allowedHosts: HostPolicy) async throws -> HTTPResponse {
+        HTTPResponse(url: request.url, status: 200, headers: ["Content-Type": "text/html"], data: Data("<p>x</p>".utf8))
     }
 }

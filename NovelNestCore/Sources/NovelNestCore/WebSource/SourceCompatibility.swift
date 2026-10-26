@@ -40,6 +40,13 @@ public enum SourceCompatibility: Sendable, Equatable {
         }
         if source.ruleContent?.content == nil { add("没有正文规则") }
         if let library = source.jsLib, library.trimmingCharacters(in: .whitespaces).hasPrefix("{") { add("需要外部脚本库") }
+        if source.baseURL.host.map(HostPolicy.isLocal) ?? true { add("指向本机或局域网") }
+        // A search on another site would be refused anyway; say why up front.
+        if let search = source.searchUrl, !RuleSyntax.hasScript(search),
+           let host = search.firstMatch(of: /^\s*https?:\/\/([^\/?#,{<]+)/)?.1,
+           let url = URL(string: "https://\(host)/"), !HostPolicy(source: source).allows(url) {
+            add("搜索地址不在书源网站")
+        }
 
         let texts = [source.searchUrl, source.header, source.jsLib].compactMap { $0 } + source.ruleStrings
         for text in texts {

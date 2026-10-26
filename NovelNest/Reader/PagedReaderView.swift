@@ -61,6 +61,10 @@ struct PagedReaderView: UIViewControllerRepresentable {
 
         init(_ parent: PagedReaderView) {
             self.parent = parent
+            // A page view made afresh (another page-turn mode, 换源) opens at
+            // the reader's location; the last jump, say to a chapter's start
+            // from the contents, was already made and isn't made again.
+            jumpID = parent.jump?.id
         }
 
         @objc func tapped() { parent.onTap() }
@@ -93,7 +97,8 @@ struct PagedReaderView: UIViewControllerRepresentable {
             guard layout != self.layout || parent.theme != theme || jump != nil || contentChanged else { return }
 
             let restyle = layout != self.layout || parent.theme != theme || contentChanged
-            if layout != self.layout {
+            // Laid-out chapters carry the theme's text colour.
+            if layout != self.layout || parent.theme != theme {
                 chapters = [:]
                 revisions = [:]
             }
@@ -141,7 +146,15 @@ struct PagedReaderView: UIViewControllerRepresentable {
         private func paginated(_ chapter: Int) -> PaginatedChapter {
             if let cached = chapters[chapter] { return cached }
             let result = PaginatedChapter(title: parent.store.title(chapter), paragraphs: parent.store.paragraphs(chapter),
-                                          metrics: parent.metrics, textSize: layout?.textSize ?? .zero)
+                                          metrics: parent.metrics, textSize: layout?.textSize ?? .zero,
+                                          textColor: UIColor(parent.theme.text))
+            // Each laid-out chapter keeps its glyphs; keep only those near
+            // the one being read.
+            let anchor = shown?.chapter ?? chapter
+            for far in chapters.keys.filter({ abs($0 - anchor) > 3 }) {
+                chapters[far] = nil
+                revisions[far] = nil
+            }
             chapters[chapter] = result
             revisions[chapter] = parent.store.revision(chapter)
             return result
@@ -213,7 +226,7 @@ private struct PageRef: Hashable, Comparable {
 
 /// Space around the text on each page: a header line with the chapter
 /// title and a footer with the page number.
-private struct PageLayout: Equatable {
+struct PageLayout: Equatable {
     static let headerHeight: CGFloat = 36
     static let footerHeight: CGFloat = 32
 
@@ -228,11 +241,19 @@ private struct PageLayout: Equatable {
     }
 }
 
-/// One chapter as an attributed string split into page-sized ranges.
-private struct PaginatedChapter {
+/// One chapter laid out once into page-sized text containers. Pages draw
+/// the glyphs from this same layout, so a page shows exactly the text its
+/// range says; laying a page's text out again could break lines
+/// differently and clip the last lines out of sight.
+struct PaginatedChapter {
     let text: NSAttributedString
     /// Character ranges of each page.
     let pages: [NSRange]
+    /// The layout pages draw from, with one container per page.
+    let layoutManager: NSLayoutManager
+    let containers: [NSTextContainer]
+    /// Owns `layoutManager`, which only references it weakly.
+    private let storage: NSTextStorage
     /// Start offset of the title (element 0) and of each paragraph.
     private let starts: [Int]
 
@@ -241,7 +262,7 @@ private struct PaginatedChapter {
     private static let indent = "\u{3000}\u{3000}"
     private static let indentLength = (indent as NSString).length
 
-    init(title: String, paragraphs: [String], metrics: ReaderMetrics, textSize: CGSize) {
+    init(title: String, paragraphs: [String], metrics: ReaderMetrics, textSize: CGSize, textColor: UIColor = .label) {
         let titleStyle = NSMutableParagraphStyle()
         titleStyle.lineSpacing = metrics.lineSpacing / 2
         titleStyle.paragraphSpacing = metrics.paragraphSpacing * 2
@@ -254,11 +275,13 @@ private struct PaginatedChapter {
         let text = NSMutableAttributedString(string: title + (paragraphs.isEmpty ? "" : "\n"), attributes: [
             .font: UIFont.systemFont(ofSize: metrics.titleSize, weight: .semibold),
             .paragraphStyle: titleStyle,
+            .foregroundColor: textColor,
         ])
         var starts = [0]
         let bodyAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: metrics.fontSize),
             .paragraphStyle: bodyStyle,
+            .foregroundColor: textColor,
         ]
         for (index, paragraph) in paragraphs.enumerated() {
             starts.append(text.length)
@@ -267,31 +290,44 @@ private struct PaginatedChapter {
         }
         self.text = text
         self.starts = starts
-        pages = Self.paginate(text, size: textSize)
+        storage = NSTextStorage(attributedString: text)
+        layoutManager = NSLayoutManager()
+        storage.addLayoutManager(layoutManager)
+        (pages, containers) = Self.paginate(layoutManager, length: storage.length, size: textSize)
     }
 
     /// Lays the text out into page-sized text containers until it is used up.
-    private static func paginate(_ text: NSAttributedString, size: CGSize) -> [NSRange] {
-        let storage = NSTextStorage(attributedString: text)
-        let layoutManager = NSLayoutManager()
-        storage.addLayoutManager(layoutManager)
-        var pages: [NSRange] = []
-        var end = 0
-        while end < storage.length {
-            let container = NSTextContainer(size: size)
+    private static func paginate(_ layoutManager: NSLayoutManager, length: Int,
+                                 size: CGSize) -> ([NSRange], [NSTextContainer]) {
+        func addContainer(height: CGFloat) -> NSTextContainer {
+            let container = NSTextContainer(size: CGSize(width: size.width, height: height))
             container.lineFragmentPadding = 0
             layoutManager.addTextContainer(container)
+            return container
+        }
+        var pages: [NSRange] = []
+        var containers: [NSTextContainer] = []
+        var end = 0
+        while end < length {
+            let container = addContainer(height: size.height)
             let glyphs = layoutManager.glyphRange(for: container)
             let range = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
             // A line taller than the page would never fit; stop instead of looping.
-            guard range.length > 0 else { break }
+            guard range.length > 0 else {
+                layoutManager.removeTextContainer(at: layoutManager.textContainers.count - 1)
+                break
+            }
             pages.append(range)
+            containers.append(container)
             end = NSMaxRange(range)
         }
-        if end < storage.length {
-            pages.append(NSRange(location: end, length: storage.length - end))
+        if end < length || pages.isEmpty {
+            // What's left goes on one more page, laid out without a height limit.
+            let container = addContainer(height: .greatestFiniteMagnitude)
+            pages.append(NSRange(location: end, length: length - end))
+            containers.append(container)
         }
-        return pages.isEmpty ? [NSRange(location: 0, length: storage.length)] : pages
+        return (pages, containers)
     }
 
     /// The page showing a location's character, so a page that starts
@@ -338,7 +374,7 @@ private final class PageController: UIViewController {
 
     private let header = UILabel()
     private let footer = UILabel()
-    private let textView = UITextView(usingTextLayoutManager: false)
+    private let textView: PageTextView
 
     init(page: PageRef, chapter: PaginatedChapter, chapterTitle: String, layout: PageLayout, theme: ReaderTheme) {
         self.page = page
@@ -346,6 +382,7 @@ private final class PageController: UIViewController {
         self.chapterTitle = chapterTitle
         self.layout = layout
         self.theme = theme
+        textView = PageTextView(chapter: chapter, page: page.index)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -367,26 +404,11 @@ private final class PageController: UIViewController {
         footer.textAlignment = .right
 
         renderText()
-        textView.backgroundColor = .clear
-        textView.isEditable = false
-        textView.isSelectable = false
-        textView.isScrollEnabled = false
-        textView.isUserInteractionEnabled = false
-        textView.textContainerInset = .zero
-        textView.textContainer.lineFragmentPadding = 0
         view.addSubview(textView)
     }
 
     private func renderText() {
-        let pageRange = chapter.pages[page.index]
-        let pageText = NSMutableAttributedString(attributedString: chapter.text.attributedSubstring(from: pageRange))
-        pageText.addAttribute(.foregroundColor, value: UIColor(theme.text),
-                              range: NSRange(location: 0, length: pageText.length))
-        if let highlight, let overlap = highlight.intersection(pageRange) {
-            pageText.addAttribute(.backgroundColor, value: UIColor(Color.accentColor).withAlphaComponent(0.22),
-                                  range: NSRange(location: overlap.location - pageRange.location, length: overlap.length))
-        }
-        textView.attributedText = pageText
+        textView.highlight = highlight
     }
 
     override func viewDidLayoutSubviews() {
@@ -396,9 +418,55 @@ private final class PageController: UIViewController {
         let width = layout.textSize.width
         header.frame = CGRect(x: margin, y: 8, width: width, height: 20)
         footer.frame = CGRect(x: margin, y: bounds.height - PageLayout.footerHeight + 6, width: width, height: 20)
-        // Extra height so a rounding difference never clips the last line;
-        // the page's text already ends where the layout said it would.
+        // Room below the container for the last line's trailing spacing.
         textView.frame = CGRect(x: margin, y: PageLayout.headerHeight, width: width,
                                 height: layout.textSize.height + layout.metrics.lineSpacing)
+    }
+}
+
+/// Draws one page's container from the chapter's shared layout. The
+/// read-aloud highlight is filled in behind the glyphs, so the text
+/// storage (and with it the layout) is never touched.
+final class PageTextView: UIView {
+    private let chapter: PaginatedChapter
+    private let page: Int
+
+    var highlight: NSRange? {
+        didSet { if highlight != oldValue { setNeedsDisplay() } }
+    }
+
+    init(chapter: PaginatedChapter, page: Int) {
+        self.chapter = chapter
+        self.page = page
+        super.init(frame: .zero)
+        isOpaque = false
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        contentMode = .redraw
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// The glyphs this page draws.
+    var glyphRange: NSRange {
+        guard chapter.containers.indices.contains(page) else { return NSRange(location: 0, length: 0) }
+        return chapter.layoutManager.glyphRange(for: chapter.containers[page])
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard chapter.pages.indices.contains(page) else { return }
+        let layoutManager = chapter.layoutManager
+        let container = chapter.containers[page]
+        let glyphs = glyphRange
+        if let highlight, let overlap = highlight.intersection(chapter.pages[page]), overlap.length > 0 {
+            let highlighted = layoutManager.glyphRange(forCharacterRange: overlap, actualCharacterRange: nil)
+            UIColor(Color.accentColor).withAlphaComponent(0.22).setFill()
+            layoutManager.enumerateEnclosingRects(forGlyphRange: highlighted,
+                                                  withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                                                  in: container) { rect, _ in
+                UIRectFillUsingBlendMode(rect, .normal)
+            }
+        }
+        layoutManager.drawGlyphs(forGlyphRange: glyphs, at: .zero)
     }
 }

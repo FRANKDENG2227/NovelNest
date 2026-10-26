@@ -10,11 +10,22 @@ public struct WebBookClient: Sendable {
     public let source: LegadoSource
     let fetcher: any HTTPFetching
     let policy: HostPolicy
+    /// Shared by this client's scripts; `cancelScripts()` stops their requests.
+    let budget = ScriptBudget()
 
     public init(source: LegadoSource, fetcher: any HTTPFetching = URLSessionFetcher.shared) {
         self.source = source
         self.fetcher = fetcher
         policy = HostPolicy(source: source)
+    }
+
+    /// Whether runaway scripts can be stopped by time (see `ScriptWatchdog`).
+    public static var scriptTimeLimitAvailable: Bool { ScriptWatchdog.isAvailable }
+
+    /// Makes scripts still running for this client fail their requests at
+    /// once, e.g. after a search timed out or the reader left.
+    public func cancelScripts() {
+        budget.cancel()
     }
 
     struct Page: Sendable {
@@ -39,16 +50,26 @@ public struct WebBookClient: Sendable {
     /// A script host whose `java.ajax` goes through this client, so script
     /// requests get the same domain policy, spacing and block handling.
     func host(_ environment: ScriptEnvironment = ScriptEnvironment()) -> ScriptHost {
-        ScriptHost(source: source, environment: environment) { [self] url in blockingFetch(url) }
+        let client = self
+        let reference = WeakHost()
+        let created = ScriptHost(source: source, environment: environment, budget: budget) { url in
+            client.blockingFetch(url, scripts: reference.host)
+        }
+        reference.host = created
+        return created
     }
 
     /// Waits on the calling (GCD) thread for a page; nil on any failure.
-    private func blockingFetch(_ url: String) -> ScriptResponse? {
+    /// The request is built here, with the calling script's host for a
+    /// script header, so no further `Offload` work is waited on.
+    private func blockingFetch(_ url: String, scripts: ScriptHost?) -> ScriptResponse? {
+        guard !budget.isCancelled,
+              let request = try? SourceRequest.page(url, base: source.baseURL, source: source, scripts: scripts) else { return nil }
         let box = ResponseBox()
         let done = DispatchSemaphore(value: 0)
         let client = self
         Task.detached {
-            if let page = try? await client.fetch(url) {
+            if let page = try? await client.fetch(request) {
                 box.value = ScriptResponse(body: page.text, url: page.url.absoluteString, code: 200)
             }
             done.signal()
@@ -89,7 +110,7 @@ public struct WebBookClient: Sendable {
                 kind: try evaluator.string(rule.kind, in: item).map(Self.clean),
                 latestChapter: try evaluator.string(rule.lastChapter, in: item).map(Self.clean),
                 intro: try evaluator.string(rule.intro, in: item),
-                coverURL: try evaluator.string(rule.coverUrl, in: item).flatMap { SourceRequest.resolve($0, base: page.url) },
+                coverURL: try evaluator.string(rule.coverUrl, in: item).flatMap { cover($0, base: page.url) },
                 bookURL: bookURL,
                 wordCount: try evaluator.string(rule.wordCount, in: item)))
         }
@@ -134,8 +155,8 @@ public struct WebBookClient: Sendable {
         let title = try field(rule.name, meta: "og:novel:book_name").map(Self.clean) ?? fallback?.title ?? ""
         let category = try field(rule.kind, meta: "og:novel:category").map(Self.clean) ?? fallback?.kind
         let tocURL = try evaluator.string(rule.tocUrl, in: node).flatMap { Self.absolute($0, base: page.url) } ?? bookURL
-        let cover = try evaluator.string(rule.coverUrl, in: node).flatMap { SourceRequest.resolve($0, base: page.url) }
-            ?? evaluator.meta("og:image").flatMap { SourceRequest.resolve($0, base: page.url) }
+        let cover = try evaluator.string(rule.coverUrl, in: node).flatMap { self.cover($0, base: page.url) }
+            ?? evaluator.meta("og:image").flatMap { self.cover($0, base: page.url) }
         return WebBookDetail(
             sourceURL: source.bookSourceUrl, sourceName: source.bookSourceName, bookURL: bookURL, tocURL: tocURL,
             title: title,
@@ -143,7 +164,7 @@ public struct WebBookClient: Sendable {
             category: category,
             latestChapter: try field(rule.lastChapter, meta: "og:novel:latest_chapter_name").map(Self.clean) ?? fallback?.latestChapter,
             intro: try field(rule.intro, meta: "og:description").map(Self.cleanIntro) ?? fallback?.intro,
-            coverURL: cover ?? fallback?.coverURL,
+            coverURL: cover ?? fallback?.coverURL.flatMap { policy.allows($0) ? $0 : nil },
             wordCount: try evaluator.string(rule.wordCount, in: node) ?? fallback?.wordCount,
             serialStatus: SerialStatus(text: evaluator.meta("og:novel:status") ?? category))
     }
@@ -226,16 +247,26 @@ public struct WebBookClient: Sendable {
                 queue.append(next)
             }
         }
-        var text = texts.joined(separator: "\n")
-        if let replaceRegex = rule.replaceRegex, case (_, let replacement?) = RuleSyntax.splitReplacement(replaceRegex) {
-            text = try RegexGuard.apply(replacement, to: text)
+        let joined = texts.joined(separator: "\n")
+        // Off the cooperative pool: even time-limited, regexes block a thread.
+        let paragraphs = try await Offload.run {
+            var text = joined
+            if let replaceRegex = rule.replaceRegex, case (_, let replacement?) = RuleSyntax.splitReplacement(replaceRegex) {
+                text = try RegexGuard.apply(replacement, to: text)
+            }
+            return HTMLText.removingRepeatedTitle(PlainTextCleaner.paragraphs(of: text), title: title)
         }
-        let paragraphs = HTMLText.removingRepeatedTitle(PlainTextCleaner.paragraphs(of: text), title: title)
         guard !paragraphs.isEmpty else { throw WebSourceError.emptyContent }
         return paragraphs
     }
 
     // MARK: Helpers
+
+    /// A cover image URL, only on the source's own site: the app loads
+    /// covers directly, so other hosts (trackers, local devices) are dropped.
+    func cover(_ text: String, base: URL) -> URL? {
+        SourceRequest.resolve(text, base: base).flatMap { policy.allows($0) ? $0 : nil }
+    }
 
     /// An absolute URL, keeping any `,{options}` suffix.
     static func absolute(_ text: String, base: URL) -> String? {
@@ -270,11 +301,19 @@ public struct WebBookClient: Sendable {
 
 /// One source's answer to a search.
 public struct SourceSearchEvent: Sendable {
+    public enum Failure: Sendable, Equatable {
+        /// Rate limits and cancellation say nothing about the source.
+        case temporary
+        /// The site refused, timed out or errored.
+        case failure
+        /// A script hit a time, request or nesting limit; the source
+        /// should be turned off.
+        case runaway
+    }
+
     public enum Outcome: Sendable {
         case results([WebSearchResult])
-        /// `isTemporary` for rate limits, which say nothing about whether
-        /// the source works.
-        case failed(message: String, isTemporary: Bool)
+        case failed(message: String, kind: Failure)
     }
 
     public var sourceURL: String
@@ -314,23 +353,53 @@ public enum WebSearch {
         }
     }
 
+    /// Returns when the search finishes or `timeout` passes, whichever is
+    /// first. A task group would wait for a stuck script; this doesn't, and
+    /// cancels the client's scripts so they stop making requests.
     static func search(_ source: LegadoSource, key: String, fetcher: any HTTPFetching, timeout: Duration) async -> SourceSearchEvent {
-        do {
-            let results = try await withThrowingTaskGroup(of: [WebSearchResult].self) { group in
-                group.addTask { try await WebBookClient(source: source, fetcher: fetcher).search(key) }
-                group.addTask {
-                    try await Task.sleep(for: timeout)
-                    throw WebSourceError.timedOut
-                }
-                defer { group.cancelAll() }
-                return try await group.next() ?? []
-            }
-            return SourceSearchEvent(sourceURL: source.bookSourceUrl, sourceName: source.bookSourceName, outcome: .results(results))
-        } catch {
-            let isTemporary = if case .rateLimited? = error as? WebSourceError { true } else { error is CancellationError }
-            return SourceSearchEvent(sourceURL: source.bookSourceUrl, sourceName: source.bookSourceName,
-                                     outcome: .failed(message: error.localizedDescription, isTemporary: isTemporary))
+        let client = WebBookClient(source: source, fetcher: fetcher)
+        let result = await firstOf(timeout: timeout) { try await client.search(key) }
+        func event(_ outcome: SourceSearchEvent.Outcome) -> SourceSearchEvent {
+            SourceSearchEvent(sourceURL: source.bookSourceUrl, sourceName: source.bookSourceName, outcome: outcome)
         }
+        switch result {
+        case .success(let results):
+            return event(.results(results))
+        case .failure(let error):
+            client.cancelScripts()
+            return event(.failed(message: error.localizedDescription, kind: failureKind(error)))
+        }
+    }
+
+    static func failureKind(_ error: Error) -> SourceSearchEvent.Failure {
+        switch error as? WebSourceError {
+        case .rateLimited?: .temporary
+        case .runawayScript?: .runaway
+        default: error is CancellationError ? .temporary : .failure
+        }
+    }
+
+    /// The operation's result, or `timedOut` if it takes longer than
+    /// `timeout`, or `CancellationError` if the caller is cancelled. The
+    /// operation is cancelled but not waited for.
+    static func firstOf<T: Sendable>(timeout: Duration,
+                                     _ operation: @escaping @Sendable () async throws -> T) async -> Result<T, Error> {
+        let gate = ResultGate<T>()
+        let work = Task {
+            do { gate.resolve(.success(try await operation())) } catch { gate.resolve(.failure(error)) }
+        }
+        let timer = Task {
+            try? await Task.sleep(for: timeout)
+            gate.resolve(.failure(WebSourceError.timedOut))
+        }
+        let result = await withTaskCancellationHandler {
+            await gate.value()
+        } onCancel: {
+            gate.resolve(.failure(CancellationError()))
+        }
+        work.cancel()
+        timer.cancel()
+        return result
     }
 }
 
@@ -342,4 +411,37 @@ private final class ResponseBox: @unchecked Sendable {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }
+}
+
+/// Holds the first result handed to it and gives it to one waiter.
+private final class ResultGate<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<T, Error>?
+    private var waiter: CheckedContinuation<Result<T, Error>, Never>?
+
+    func resolve(_ value: Result<T, Error>) {
+        let waiter: CheckedContinuation<Result<T, Error>, Never>? = lock.withLock {
+            guard result == nil else { return nil }
+            result = value
+            defer { self.waiter = nil }
+            return self.waiter
+        }
+        waiter?.resume(returning: value)
+    }
+
+    func value() async -> Result<T, Error> {
+        await withCheckedContinuation { continuation in
+            let ready: Result<T, Error>? = lock.withLock {
+                if let result { return result }
+                waiter = continuation
+                return nil
+            }
+            if let ready { continuation.resume(returning: ready) }
+        }
+    }
+}
+
+/// The host a script's requests come from, without a retain cycle.
+private final class WeakHost {
+    weak var host: ScriptHost?
 }

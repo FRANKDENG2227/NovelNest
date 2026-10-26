@@ -14,9 +14,11 @@ final class StubFetcher: HTTPFetching, @unchecked Sendable {
                                   data: body.data(using: encoding)!)
     }
 
+    /// Like `URLSessionFetcher`, refuses disallowed hosts before sending,
+    /// so `requested` lists only what would have gone out.
     func send(_ request: SourceRequest, allowedHosts: HostPolicy) async throws -> HTTPResponse {
-        lock.withLock { requested.append(request.url.absoluteString) }
         guard allowedHosts.allows(request.url) else { throw WebSourceError.disallowedHost(request.url.host ?? "") }
+        lock.withLock { requested.append(request.url.absoluteString) }
         guard let page = pages[request.url.absoluteString] else { return HTTPResponse(url: request.url, status: 404, data: Data()) }
         return page
     }
@@ -141,9 +143,9 @@ struct WebBookClientTests {
         for event in events {
             switch event.outcome {
             case .results(let results): WebSearchGroup.merge(results, into: &groups)
-            case .failed(_, let isTemporary):
+            case .failed(_, let kind):
                 failures.append(event.sourceName)
-                #expect(!isTemporary)
+                #expect(kind == .failure)
             }
         }
         #expect(groups.count == 1)

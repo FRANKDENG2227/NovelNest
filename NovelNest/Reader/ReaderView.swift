@@ -104,6 +104,8 @@ struct ReaderView: View {
             // Leaving the book ends listening; sheets over the reader and
             // going to the background don't trigger this.
             if isSpeakingBook { speech.stop() }
+            // Scripts still fetching for this book stop their requests.
+            loader?.cancel()
             // A book opened from a search and not added goes away; after a
             // moment, so nothing on the way out still reads it.
             if !book.isOnShelf {
@@ -365,7 +367,8 @@ struct ReaderView: View {
 }
 
 /// Table of contents as a drawer two thirds of the screen wide, pulled out
-/// from the left. Swipe it left (or tap outside it) to close.
+/// from the left. Swipe it left (or tap outside it) to close. Long contents
+/// get a scrubber on the right edge: drag it to run through the chapters.
 private struct ContentsDrawer: View {
     let chapters: [Chapter]
     let current: Int
@@ -375,63 +378,150 @@ private struct ContentsDrawer: View {
 
     @AppStorage(AppStorageKey.hideAuthorNotes) private var hideAuthorNotes = false
     @State private var dragOffset: CGFloat = 0
+    /// The chapter at the top of the list, kept by the scroll view.
+    @State private var topRow: Int?
+    /// Where the finger is along the scrubber (0...1) while dragging it.
+    @State private var scrubFraction: CGFloat?
+
+    private static let rowHeight: CGFloat = 44
+    private static let thumbHeight: CGFloat = 44
+    private static let scrubberWidth: CGFloat = 28
+    /// Fewer chapters than this scroll quickly enough without a scrubber.
+    private static let scrubberMinimum = 40
 
     var body: some View {
-        list
-            .containerRelativeFrame(.horizontal) { width, _ in width * 2 / 3 }
-            // Reaches past the left edge so the spring's overshoot shows no gap.
-            .background(theme.background.padding(.leading, -60).ignoresSafeArea())
-            .shadow(color: .black.opacity(0.2), radius: 12)
-            .offset(x: min(dragOffset, 0))
-            // Simultaneous so the list still scrolls; only sideways drags move it.
-            .simultaneousGesture(DragGesture()
-                .onChanged { value in
-                    if abs(value.translation.width) > abs(value.translation.height) {
-                        dragOffset = value.translation.width
+        let rows = chapters.indices.filter { !(hideAuthorNotes && chapters[$0].kind == .authorNote) }
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider()
+            GeometryReader { proxy in
+                let showsScrubber = rows.count >= Self.scrubberMinimum
+                list(rows, showsScrubber: showsScrubber)
+                    .overlay(alignment: .topTrailing) {
+                        if showsScrubber { scrubber(rows, height: proxy.size.height) }
                     }
+            }
+        }
+        .containerRelativeFrame(.horizontal) { width, _ in width * 2 / 3 }
+        // Reaches past the left edge so the spring's overshoot shows no gap.
+        .background(theme.background.padding(.leading, -60).ignoresSafeArea())
+        .shadow(color: .black.opacity(0.2), radius: 12)
+        .offset(x: min(dragOffset, 0))
+        // Simultaneous so the list still scrolls; only sideways drags move it,
+        // and not while the scrubber is held.
+        .simultaneousGesture(DragGesture()
+            .onChanged { value in
+                if scrubFraction == nil, abs(value.translation.width) > abs(value.translation.height) {
+                    dragOffset = value.translation.width
                 }
-                .onEnded { value in
-                    if dragOffset < -80 {
-                        close()
-                    }
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { dragOffset = 0 }
-                })
+            }
+            .onEnded { value in
+                if dragOffset < -80 {
+                    close()
+                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { dragOffset = 0 }
+            })
     }
 
-    private var list: some View {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("目录（\(chapters.count) 章）").font(.headline).foregroundStyle(theme.text)
+            Toggle("隐藏作者感言/请假条", isOn: $hideAuthorNotes).font(.footnote)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+    }
+
+    private func list(_ rows: [Int], showsScrubber: Bool) -> some View {
         ScrollViewReader { proxy in
-            List {
-                Section {
-                    ForEach(chapters.indices, id: \.self) { index in
-                        let chapter = chapters[index]
-                        if !(hideAuthorNotes && chapter.kind == .authorNote) {
-                            if let volume = chapter.volumeTitle, index == 0 || chapters[index - 1].volumeTitle != volume {
-                                Text(volume).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Button {
-                                select(index)
-                                close()
-                            } label: {
-                                Text(chapter.title)
-                                    .lineLimit(1)
-                                    .foregroundStyle(index == current ? Color.accentColor : theme.text)
-                            }
-                            .id(index)
-                        }
-                    }
-                } header: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("目录（\(chapters.count) 章）").font(.headline).foregroundStyle(theme.text)
-                        Toggle("隐藏作者感言/请假条", isOn: $hideAuthorNotes).font(.footnote)
-                    }
-                    .textCase(nil)
-                    .padding(.vertical, 8)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows, id: \.self) { index in row(index) }
                 }
-                .listRowBackground(Color.clear)
+                .scrollTargetLayout()
+                // Rows stay clear of the scrubber.
+                .padding(.trailing, showsScrubber ? Self.scrubberWidth - 8 : 0)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .scrollPosition(id: $topRow, anchor: .top)
+            .scrollIndicators(showsScrubber ? .hidden : .automatic)
             .onAppear { proxy.scrollTo(current, anchor: .center) }
         }
+    }
+
+    private func row(_ index: Int) -> some View {
+        let chapter = chapters[index]
+        return VStack(alignment: .leading, spacing: 0) {
+            if let volume = chapter.volumeTitle, index == 0 || chapters[index - 1].volumeTitle != volume {
+                Text(volume).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+            }
+            Button {
+                select(index)
+                close()
+            } label: {
+                Text(chapter.title)
+                    .lineLimit(1)
+                    .foregroundStyle(index == current ? Color.accentColor : theme.text)
+                    .frame(maxWidth: .infinity, minHeight: Self.rowHeight, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Divider().padding(.leading, 20)
+        }
+    }
+
+    /// A thumb on a track along the list's right edge. The thumb follows
+    /// the scrolling; dragging it scrolls the list, with the chapter it is
+    /// at shown in a bubble beside the finger.
+    private func scrubber(_ rows: [Int], height: CGFloat) -> some View {
+        // How many rows the top of the list passes over from start to end.
+        let span = max(rows.count - Int(height / Self.rowHeight), 1)
+        let travel = max(height - Self.thumbHeight, 1)
+        let scrolled = topRow.flatMap { rows.firstIndex(of: $0) }.map { min(CGFloat($0) / CGFloat(span), 1) }
+        let fraction = scrubFraction ?? scrolled ?? 0
+        let scrubbing = scrubFraction != nil
+
+        return ZStack(alignment: .topTrailing) {
+            if scrubbing, let topRow {
+                Text(chapters[topRow].title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(theme.text)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.regularMaterial, in: Capsule())
+                    .shadow(color: .black.opacity(0.15), radius: 6)
+                    .padding(.trailing, Self.scrubberWidth + 4)
+                    .frame(height: Self.thumbHeight)
+                    .offset(y: fraction * travel)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+            ZStack(alignment: .top) {
+                Capsule().fill(theme.text.opacity(0.08)).frame(width: 4, height: height)
+                Capsule()
+                    .fill(scrubbing ? Color.accentColor : theme.text.opacity(0.35))
+                    .frame(width: scrubbing ? 8 : 5, height: Self.thumbHeight)
+                    .offset(y: fraction * travel)
+            }
+            .frame(width: Self.scrubberWidth, height: height)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    let position = min(max((value.location.y - Self.thumbHeight / 2) / travel, 0), 1)
+                    scrubFraction = position
+                    let target = rows[min(Int((position * CGFloat(span)).rounded()), rows.count - 1)]
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { topRow = target }
+                }
+                .onEnded { _ in
+                    withAnimation(.easeOut(duration: 0.2)) { scrubFraction = nil }
+                })
+        }
+        .sensoryFeedback(.selection, trigger: scrubFraction.map { Int($0 * 20) })
+        .animation(.easeOut(duration: 0.15), value: scrubbing)
     }
 }

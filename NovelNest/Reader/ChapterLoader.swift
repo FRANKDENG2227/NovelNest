@@ -67,6 +67,7 @@ final class ChapterLoader {
 
     /// Stops fetching, e.g. before the chapters are replaced.
     func cancel() {
+        client?.cancelScripts()
         for task in tasks.values { task.cancel() }
         tasks = [:]
         halted = "已停止"
@@ -100,7 +101,7 @@ final class ChapterLoader {
 
     private func record(_ error: Error) {
         switch error as? WebSourceError {
-        case .blocked, .captcha, .disallowedHost: halted = error.localizedDescription
+        case .blocked, .captcha, .disallowedHost, .runawayScript: halted = error.localizedDescription
         case .rateLimited(let after): retryAfter = .now.addingTimeInterval(after ?? 60)
         default: break
         }

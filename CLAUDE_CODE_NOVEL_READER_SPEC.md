@@ -257,9 +257,14 @@ Accept, Accept-Language and Content-Type headers are taken from a source.
 Sources needing decryption, a built-in browser, cookies or logins, device
 IDs, files, Java classes, XPath or WebView are imported but cannot be
 enabled. Imported, enabled sources form the allowlist; requests and
-redirects must stay on a source's own domains. Scripts have no execution
-time limit (JavaScriptCore offers none publicly); network helpers time
-out after 20 seconds.
+redirects must stay on a source's own site, never loopback, private or
+link-local addresses. Limits for untrusted sources: 5 s per script
+evaluation (JavaScriptCore's execution time limit, looked up at run time
+because it isn't public API), 30 requests per script host, 8 levels of
+rule/script nesting, 0.5 s per regular expression, 5 MB per response
+(enforced while streaming). A source whose script hits a limit is
+disabled. JavaScript heap size is not limited (no API); the time limit
+and at most 6 concurrent evaluations bound it.
 ## 10A. Chinese web-novel source adaptation
 
 Everything in this section describes **page structures and text

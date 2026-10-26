@@ -20,6 +20,9 @@ public enum WebSourceError: Error, Equatable, LocalizedError {
     case emptyContent
     /// A source script threw or couldn't run.
     case script(String)
+    /// A script ran past its time, request or nesting limit and was
+    /// stopped; the source is disabled.
+    case runawayScript(String)
 
     public var errorDescription: String? {
         switch self {
@@ -39,6 +42,7 @@ public enum WebSourceError: Error, Equatable, LocalizedError {
         case .timedOut: "网站响应超时"
         case .emptyContent: "没有找到正文"
         case .script(let message): "书源脚本出错：\(message)"
+        case .runawayScript(let reason): "书源脚本\(reason)，已停止并关闭这个书源"
         }
     }
 }
